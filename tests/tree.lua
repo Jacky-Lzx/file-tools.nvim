@@ -23,6 +23,30 @@ local function select(state, name)
   error("missing node " .. name)
 end
 
+h.test("tree clears inherited gutters without changing the editor", function()
+  local origin = api.nvim_get_current_win()
+  local inherited = {
+    statuscolumn = "%s%=%l  ",
+    number = true,
+    relativenumber = true,
+    signcolumn = "yes:2",
+    foldcolumn = "2",
+  }
+  for name, value in pairs(inherited) do
+    vim.wo[origin][name] = value
+  end
+  local state = tree.open({ root = h.root })
+  h.eq("", vim.wo[state.win].statuscolumn)
+  h.eq(false, vim.wo[state.win].number)
+  h.eq(false, vim.wo[state.win].relativenumber)
+  h.eq("no", vim.wo[state.win].signcolumn)
+  h.eq("0", vim.wo[state.win].foldcolumn)
+  for name, value in pairs(inherited) do
+    h.eq(value, vim.wo[origin][name])
+  end
+  tree.close()
+end)
+
 h.test("tree sorts directories first, hides dotfiles and folds lazily", function()
   local state = tree.open({ root = h.root })
   h.eq("src", state.nodes[2].name)

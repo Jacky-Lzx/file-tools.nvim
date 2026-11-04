@@ -58,6 +58,9 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
             if (fixture / "snapshot.json").exists():
                 value = json.loads((fixture / "snapshot.json").read_text())
                 if predicate(value):
+                    if value.get("tree"):
+                        assert value["tree"]["textoff"] == 0, "Tree inherited an empty gutter: " + json.dumps(value["tree"])
+                        assert value["tree"]["statuscolumn"] == "", "Tree kept a custom status column"
                     return value
         raise AssertionError(label + "\n" + json.dumps(value, ensure_ascii=False) + "\n" + transcript.decode(errors="replace")[-2500:])
 

@@ -106,6 +106,8 @@ local function snapshot()
       focus = api.nvim_get_current_win() == tree.win,
       lines = api.nvim_buf_get_lines(tree.buf, 0, -1, false),
       width = api.nvim_win_get_width(tree.win),
+      textoff = vim.fn.getwininfo(tree.win)[1].textoff,
+      statuscolumn = vim.wo[tree.win].statuscolumn,
       watchers = vim.tbl_count(tree.watchers),
       cursor = api.nvim_win_get_cursor(tree.win),
       buf = tree.buf,

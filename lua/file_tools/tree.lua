@@ -498,6 +498,7 @@ function M.open(opts)
     number = false,
     relativenumber = false,
     signcolumn = "no",
+    statuscolumn = "",
     wrap = false,
     cursorline = true,
     winfixwidth = true,
