@@ -8,6 +8,7 @@ import select
 import signal
 import struct
 import subprocess
+import sys
 import tempfile
 import termios
 import time
@@ -16,7 +17,9 @@ root = Path(__file__).resolve().parents[1]
 configured = os.environ.get("FILE_TOOLS_CONFIGURED") == "1"
 theme_test = os.environ.get("FILE_TOOLS_THEME_TEST") == "1"
 integrated = os.environ.get("FILE_TOOLS_INTEGRATED") == "1"
+dashboard_test = os.environ.get("FILE_TOOLS_DASHBOARD_TEST")
 assert not integrated or configured, "Integrated acceptance requires FILE_TOOLS_CONFIGURED=1"
+assert not dashboard_test or integrated, "Dashboard acceptance requires the actual configured integrations"
 with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
     fixture = Path(temporary).resolve()
     (fixture / "src").mkdir()
@@ -61,11 +64,13 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
                     if value.get("tree"):
                         assert value["tree"]["textoff"] == 0, "Tree inherited an empty gutter: " + json.dumps(value["tree"])
                         assert value["tree"]["statuscolumn"] == "", "Tree kept a custom status column"
+                        assert value["tree"]["winfixbuf"], "Files window lost native buffer protection"
                         if integrated:
                             top, bottom = value["tree_bars"]["top"], value["tree_bars"]["bottom"]
                             assert top.strip() == "Files", "Missing tree title: " + top
                             assert abs(len(top) - len(top.lstrip()) - (len(top) - len(top.rstrip()))) <= 1, top
-                            assert bottom.strip() == "file-tools", "Unexpected tree footer: " + bottom
+                            if not value.get("dashboard"):
+                                assert bottom.strip() == "file-tools", "Unexpected tree footer: " + bottom
                     return value
         raise AssertionError(label + "\n" + json.dumps(value, ensure_ascii=False) + "\n" + transcript.decode(errors="replace")[-2500:])
 
@@ -75,6 +80,34 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
             if (fixture / "ready").exists():
                 break
         assert (fixture / "ready").exists(), transcript.decode(errors="replace")[-3000:]
+        if dashboard_test:
+            startup = snapshot(lambda v: bool(v.get("dashboard")), "Startup dashboard did not open")
+            assert len(startup["windows"]) == 1
+            send(" e")
+            opened = snapshot(lambda v: v.get("tree", {}).get("focus"), "Files did not open alongside dashboard")
+            assert len(opened["windows"]) == 2 and opened.get("dashboard")
+            if dashboard_test == "picker":
+                send(" sf")
+                snapshot(lambda v: v.get("picker", {}).get("ready"), "File picker did not open")
+                send("\x1b")
+                cancelled = snapshot(lambda v: not v.get("picker") and v.get("tree", {}).get("focus"), "Cancellation lost Files focus")
+                assert len(cancelled["windows"]) == 2 and cancelled["dashboard"] == startup["dashboard"]
+                send(" sf")
+                snapshot(lambda v: v.get("picker", {}).get("ready"), "File picker did not reopen")
+                send("current.lua")
+                snapshot(lambda v: v.get("picker", {}).get("query") == "current.lua" and v["picker"]["ready"], "File query did not settle")
+                send("\r")
+            else:
+                send("/current.lua\r\r")
+            chosen = snapshot(lambda v: v["origin"] and v["current"] == str(fixture / "current.lua") and not v.get("dashboard"), "Selected file did not replace the dashboard")
+            assert len(chosen["windows"]) == 2, "Opening created an extra editor split"
+            assert chosen["laststatus"] == 2, "Dashboard did not restore the statusline"
+            assert chosen["tree"]["buf"] == opened["tree"]["buf"]
+            assert all(b["name"] for b in chosen["listed"]), "Opening left unnamed placeholder buffers"
+            assert startup["dashboard"]["buf"] not in [b["id"] for b in chosen["buffers"]]
+            assert startup["dashboard"]["source"] not in [b["id"] for b in chosen["buffers"]]
+            print("PTY (configured dashboard): Files + " + dashboard_test + " reuses dashboard window, restores bars and removes startup placeholders")
+            sys.exit(0)
         send(" e" if integrated else "\x1b[17~")  # Configured leader-e or isolated F6
         opened = snapshot(lambda v: v.get("tree", {}).get("focus"), "Tree did not open")
         assert "▸  src" in opened["screen"] and "current.txt" in opened["screen"]
@@ -105,6 +138,19 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
             assert frames[0]["directory_attr"] != frames[1]["directory_attr"], "Visible directory cells did not change color"
             assert frames[-1]["palette"]["ui"]["bg"] == "NONE"
             assert frames[-1]["colors"]["Normal"].get("bg") is None
+        if integrated:
+            send(" sf")
+            snapshot(lambda v: v.get("picker", {}).get("ready"), "Configured file picker did not open from Files")
+            send("\x1b")
+            snapshot(lambda v: not v.get("picker") and v.get("tree", {}).get("focus"), "Picker cancellation did not return to Files")
+            send(" sf")
+            snapshot(lambda v: v.get("picker", {}).get("ready"), "Configured file picker did not reopen")
+            send("current.lua")
+            snapshot(lambda v: v.get("picker", {}).get("query") == "current.lua" and v["picker"]["ready"], "File query did not settle")
+            send("\r")
+            chosen = snapshot(lambda v: not v.get("picker") and v["origin"] and v["current"] == str(fixture / "current.lua"), "File picker replaced Files instead of the editor")
+            assert chosen["tree"]["buf"] == opened["tree"]["buf"], "File picker destroyed the Files buffer"
+            send("\x17h")
         send("/src\rl")  # Expand src using actual l mapping
         expanded = snapshot(lambda v: "child.txt" in "\n".join(v["tree"]["lines"]), "Directory did not expand")
         send("j\r")  # Open child in editor

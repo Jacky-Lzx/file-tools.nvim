@@ -1,6 +1,7 @@
 local api = vim.api
 local root, fixture = vim.env.FILE_TOOLS_ROOT, vim.env.FILE_TOOLS_FIXTURE
 local integrated = vim.env.FILE_TOOLS_INTEGRATED == "1"
+local dashboard_test = vim.env.FILE_TOOLS_DASHBOARD_TEST ~= nil
 if not integrated then
   vim.opt.runtimepath:prepend(root)
 end
@@ -24,8 +25,10 @@ if integrated then
 else
   require("file_tools").setup({ tree = { follow = true } })
 end
-vim.cmd.edit(vim.fn.fnameescape(fixture .. "/current.txt"))
-if integrated then
+if not dashboard_test then
+  vim.cmd.edit(vim.fn.fnameescape(fixture .. "/current.txt"))
+end
+if integrated and not dashboard_test then
   assert(
     require("lazy.core.config").plugins["file-tools.nvim"]._.loaded,
     "LSP dependency did not load file-tools"
@@ -36,10 +39,20 @@ if integrated then
   assert(capabilities.textDocument.completion.completionItem.snippetSupport)
 end
 local origin = api.nvim_get_current_win()
+local picker
+if integrated then
+  local selection = require("selection_tools")
+  local files = selection.files
+  selection.files = function(...)
+    picker = files(...)
+    return picker
+  end
+end
 
 local function snapshot()
   vim.cmd.redraw()
   local tree = package.loaded["file_tools.tree"] and require("file_tools.tree").state()
+  local dashboard = package.loaded["ui_tools.dashboard"] and require("ui_tools.dashboard").state()
   local screen = {}
   for row = 1, vim.o.lines do
     local line = {}
@@ -116,12 +129,25 @@ local function snapshot()
     directory_attr = directory_attr,
     file_icon = file_icon,
     tree_bars = tree_bars,
+    dashboard = dashboard and { win = dashboard.win, buf = dashboard.buf, source = dashboard.source } or nil,
+    laststatus = vim.o.laststatus,
+    windows = vim.tbl_filter(function(win)
+      return api.nvim_win_get_config(win).relative == ""
+    end, api.nvim_tabpage_list_wins(0)),
+    listed = vim.tbl_map(function(info)
+      return { id = info.bufnr, name = info.name }
+    end, vim.fn.getbufinfo({ buflisted = 1 })),
+    picker = picker and not picker.closed and {
+      query = picker.query,
+      ready = not picker.loading and not picker.matching and #picker.matches > 0,
+    } or nil,
     tree = tree and {
       focus = api.nvim_get_current_win() == tree.win,
       lines = api.nvim_buf_get_lines(tree.buf, 0, -1, false),
       width = api.nvim_win_get_width(tree.win),
       textoff = vim.fn.getwininfo(tree.win)[1].textoff,
       statuscolumn = vim.wo[tree.win].statuscolumn,
+      winfixbuf = vim.wo[tree.win].winfixbuf,
       watchers = vim.tbl_count(tree.watchers),
       cursor = api.nvim_win_get_cursor(tree.win),
       buf = tree.buf,

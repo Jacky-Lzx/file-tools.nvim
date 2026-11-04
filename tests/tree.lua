@@ -41,6 +41,11 @@ h.test("tree clears inherited gutters without changing the editor", function()
   h.eq(false, vim.wo[state.win].relativenumber)
   h.eq("no", vim.wo[state.win].signcolumn)
   h.eq("0", vim.wo[state.win].foldcolumn)
+  h.eq(true, vim.wo[state.win].winfixbuf)
+  local replacement = api.nvim_create_buf(false, true)
+  assert(not pcall(api.nvim_win_set_buf, state.win, replacement), "tree accepted an unrelated buffer")
+  h.eq(state.buf, api.nvim_win_get_buf(state.win))
+  api.nvim_buf_delete(replacement, { force = true })
   for name, value in pairs(inherited) do
     h.eq(value, vim.wo[origin][name])
   end
@@ -143,6 +148,58 @@ h.test("entry limit bounds tree rendering", function()
   assert(#state.nodes <= 4)
   assert(state.nodes[#state.nodes].error)
   tree.close()
+end)
+
+h.test("tree skips protected editor targets", function()
+  require("file_tools").setup({})
+  local origin = api.nvim_get_current_win()
+  vim.wo[origin].winfixbuf = true
+  local state = tree.open({ root = h.root })
+  select(state, h.root .. "/a.txt")
+  key("<CR>")
+  local target = api.nvim_get_current_win()
+  assert(target ~= origin and target ~= state.win)
+  h.eq(h.root .. "/a.txt", api.nvim_buf_get_name(0))
+  h.eq(state.buf, api.nvim_win_get_buf(state.win))
+  tree.close()
+  vim.wo[origin].winfixbuf = false
+  api.nvim_win_close(target, true)
+end)
+
+h.test("closing the only tree releases its native buffer lock", function()
+  local state = tree.open({ root = h.root })
+  for _, win in ipairs(api.nvim_tabpage_list_wins(0)) do
+    if win ~= state.win then
+      api.nvim_win_close(win, true)
+    end
+  end
+  local win = state.win
+  tree.close()
+  assert(api.nvim_win_is_valid(win))
+  h.eq(false, vim.wo[win].winfixbuf)
+  h.eq("", vim.bo[api.nvim_win_get_buf(win)].buftype)
+  assert(not api.nvim_buf_is_valid(state.buf))
+  h.eq({}, state.watchers)
+end)
+
+h.test("opening from the only tree creates only the requested editor", function()
+  for _, mapping in ipairs({ "<CR>", "S", "s", "t" }) do
+    local state = tree.open({ root = h.root })
+    api.nvim_win_close(state.target_win, true)
+    select(state, h.root .. "/a.txt")
+    key(mapping)
+    h.eq(h.root .. "/a.txt", api.nvim_buf_get_name(0))
+    h.eq(state.buf, api.nvim_win_get_buf(state.win))
+    h.eq(true, vim.wo[state.win].winfixbuf)
+    if mapping == "t" then
+      h.eq(2, #api.nvim_list_tabpages())
+      vim.cmd.tabclose()
+    else
+      h.eq(2, #api.nvim_tabpage_list_wins(0))
+      api.nvim_win_close(api.nvim_get_current_win(), true)
+    end
+    tree.close()
+  end
 end)
 
 h.finish()

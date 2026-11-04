@@ -56,6 +56,12 @@ Only expanded directories are scanned. Visible directories are watched (up to
 Directory symlinks are displayed without recursive traversal. Files open in the
 editing window, and following the current file does not steal focus.
 
+The tree protects its window with Neovim's native `winfixbuf`. Opening a file
+prefers an unlocked editor in the same tab, then an unlocked `nofile` start
+screen, then creates an editor to the right. Protected, floating/preview,
+terminal and quickfix windows are skipped. Explicit splits create an editor
+without cloning a start screen. Closing the last tree releases its buffer lock.
+
 When ui-tools manages window bars, the tree declares a centered `Files` title
 and a minimal `file-tools` footer through buffer-local bar profiles.
 
@@ -143,6 +149,8 @@ python3 tests/tui.py                      # real PTY tree interaction
 FILE_TOOLS_CONFIGURED=1 python3 tests/tui.py # current Neovim configuration
 FILE_TOOLS_THEME_TEST=1 python3 tests/tui.py # real theme switches in the visible tree
 FILE_TOOLS_CONFIGURED=1 FILE_TOOLS_INTEGRATED=1 FILE_TOOLS_THEME_TEST=1 python3 tests/tui.py # actual configured e/E/cw mappings
+FILE_TOOLS_CONFIGURED=1 FILE_TOOLS_INTEGRATED=1 FILE_TOOLS_DASHBOARD_TEST=picker python3 tests/tui.py # startup dashboard + Files + Space sf
+FILE_TOOLS_CONFIGURED=1 FILE_TOOLS_INTEGRATED=1 FILE_TOOLS_DASHBOARD_TEST=tree python3 tests/tui.py # startup dashboard + Files + Enter
 nvim --headless -u NONE -i NONE -n -l tests/real_lsp.lua # installed TypeScript server
 ```
 

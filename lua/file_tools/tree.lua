@@ -221,25 +221,46 @@ local function reveal(state, name)
   M.refresh(state, name)
 end
 
-local function target_window(state)
-  if
-    state.target_win
-    and api.nvim_win_is_valid(state.target_win)
-    and state.target_win ~= state.win
-    and api.nvim_win_get_tabpage(state.target_win) == state.tab
-  then
-    return state.target_win
-  end
-  for _, win in ipairs(api.nvim_tabpage_list_wins(state.tab)) do
-    if win ~= state.win and api.nvim_win_get_config(win).relative == "" then
-      return win
+local function file_window(state)
+  local candidates = { state.target_win or 0, vim.fn.win_getid(vim.fn.winnr("#")) }
+  vim.list_extend(candidates, api.nvim_tabpage_list_wins(state.tab))
+  -- Prefer editors; unlocked scratch windows (such as a start screen) are
+  -- fallback targets. Window protection is native and independent of filetype.
+  for _, kind in ipairs({ "", "nofile" }) do
+    for _, win in ipairs(candidates) do
+      if
+        win ~= 0
+        and win ~= state.win
+        and api.nvim_win_is_valid(win)
+        and api.nvim_win_get_tabpage(win) == state.tab
+        and api.nvim_win_get_config(win).relative == ""
+        and not vim.wo[win].winfixbuf
+        and not vim.wo[win].previewwindow
+        and vim.bo[api.nvim_win_get_buf(win)].buftype == kind
+      then
+        return win
+      end
     end
   end
-  api.nvim_set_current_win(state.win)
-  vim.cmd("rightbelow vsplit")
-  local win = api.nvim_get_current_win()
-  api.nvim_win_set_buf(win, api.nvim_create_buf(true, false))
-  state.target_win = win
+end
+
+local function target_window(state, mode)
+  local win = file_window(state)
+  api.nvim_set_current_win(win or state.win)
+  if mode then
+    local commands = { split = "split", vsplit = "vsplit", tab = "tabnew" }
+    local command = commands[mode]
+    if not win or vim.bo.buftype ~= "" then
+      command = mode == "split" and "new" or mode == "vsplit" and "vnew" or "tabnew"
+    end
+    vim.cmd("rightbelow " .. command)
+  elseif not win then
+    vim.cmd("rightbelow vnew")
+  end
+  win = api.nvim_get_current_win()
+  if mode ~= "tab" then
+    state.target_win = win
+  end
   return win
 end
 
@@ -254,14 +275,7 @@ local function open_node(state, mode)
     return
   end
   local ok, err = pcall(function()
-    api.nvim_set_current_win(target_window(state))
-    if mode == "tab" then
-      vim.cmd.tabnew()
-    elseif mode == "split" then
-      vim.cmd.split()
-    elseif mode == "vsplit" then
-      vim.cmd.vsplit()
-    end
+    target_window(state, mode)
     vim.cmd.edit(vim.fn.fnameescape(node.path))
     if mode ~= "tab" then
       state.target_win = api.nvim_get_current_win()
@@ -504,6 +518,7 @@ function M.open(opts)
     wrap = false,
     cursorline = true,
     winfixwidth = true,
+    winfixbuf = true,
     foldcolumn = "0",
     spell = false,
     list = false,
@@ -542,6 +557,7 @@ function M.close(tab)
   states[tab] = nil
   if valid(state) then
     if #api.nvim_tabpage_list_wins(tab) == 1 then
+      vim.wo[state.win].winfixbuf = false
       api.nvim_win_set_buf(state.win, api.nvim_create_buf(true, false))
     else
       api.nvim_win_close(state.win, true)
