@@ -15,6 +15,8 @@ import time
 root = Path(__file__).resolve().parents[1]
 configured = os.environ.get("FILE_TOOLS_CONFIGURED") == "1"
 theme_test = os.environ.get("FILE_TOOLS_THEME_TEST") == "1"
+integrated = os.environ.get("FILE_TOOLS_INTEGRATED") == "1"
+assert not integrated or configured, "Integrated acceptance requires FILE_TOOLS_CONFIGURED=1"
 with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
     fixture = Path(temporary).resolve()
     (fixture / "src").mkdir()
@@ -64,7 +66,7 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
             if (fixture / "ready").exists():
                 break
         assert (fixture / "ready").exists(), transcript.decode(errors="replace")[-3000:]
-        send("\x1b[17~")  # F6 opens tree
+        send(" e" if integrated else "\x1b[17~")  # Configured leader-e or isolated F6
         opened = snapshot(lambda v: v.get("tree", {}).get("focus"), "Tree did not open")
         assert "▸ src" in opened["screen"] and "current.txt" in opened["screen"]
         assert ".hidden" not in "\n".join(opened["tree"]["lines"])
@@ -107,8 +109,18 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
         os.kill(child.pid, signal.SIGWINCH)
         send("q")
         snapshot(lambda v: not v.get("tree"), "Tree close leaked state")
+        if integrated:
+            send(" E")
+            snapshot(lambda v: v.get("tree", {}).get("selected") == str(fixture / "src/child.txt"),
+                     "Configured reveal mapping did not select the current file")
+            send("hC")
+            snapshot(lambda v: v.get("tree", {}).get("root") == str(fixture / "src"), "Tree root did not narrow")
+            send(" cw")
+            snapshot(lambda v: v.get("tree", {}).get("root") == str(fixture), "Working directory mapping did not reset root")
+            send(" e")
+            snapshot(lambda v: not v.get("tree"), "Configured toggle did not close tree")
         assert len(transcript) > 1000
-        print("PTY" + (" (configured)" if configured else "") + ": rendered tree, folding/opening, create/rename prompts, hidden files, resize and cleanup" + (", real shared theme colors and transparency" if theme_test else "") + " passed")
+        print("PTY" + (" (configured)" if configured else "") + ": rendered tree, folding/opening, create/rename prompts, hidden files, resize and cleanup" + (", real shared theme colors and transparency" if theme_test else "") + (", actual configured mappings and LSP dependencies" if integrated else "") + " passed")
     finally:
         send("\x1b:qa!\r")
         try:

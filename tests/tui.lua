@@ -1,6 +1,9 @@
 local api = vim.api
 local root, fixture = vim.env.FILE_TOOLS_ROOT, vim.env.FILE_TOOLS_FIXTURE
-vim.opt.runtimepath:prepend(root)
+local integrated = vim.env.FILE_TOOLS_INTEGRATED == "1"
+if not integrated then
+  vim.opt.runtimepath:prepend(root)
+end
 local theme_test = vim.env.FILE_TOOLS_THEME_TEST == "1"
 if theme_test then
   vim.opt.runtimepath:append(vim.env.FILE_TOOLS_THEME_TOOLS or vim.fs.dirname(root) .. "/theme-tools.nvim")
@@ -8,8 +11,30 @@ end
 vim.opt.swapfile = false
 vim.o.hidden = true
 vim.o.laststatus = 2
-require("file_tools").setup({ tree = { follow = true } })
+if integrated then
+  local plugins = require("lazy.core.config").plugins
+  assert(
+    plugins["file-tools.nvim"] and not plugins["file-tools.nvim"]._.loaded,
+    "File-tools loaded before first use"
+  )
+  for _, name in ipairs({ "nvim-tree.lua", "nvim-lsp-file-operations", "yazi.nvim" }) do
+    assert(not plugins[name], "Replaced file plugin is still configured: " .. name)
+  end
+  vim.cmd.cd(vim.fn.fnameescape(fixture))
+else
+  require("file_tools").setup({ tree = { follow = true } })
+end
 vim.cmd.edit(vim.fn.fnameescape(fixture .. "/current.txt"))
+if integrated then
+  assert(
+    require("lazy.core.config").plugins["file-tools.nvim"]._.loaded,
+    "LSP dependency did not load file-tools"
+  )
+  assert(not package.loaded["file_tools.tree"], "Capabilities initialized the tree")
+  local capabilities = vim.lsp.config["ts_ls"].capabilities
+  assert(capabilities.workspace.fileOperations.willRename)
+  assert(capabilities.textDocument.completion.completionItem.snippetSupport)
+end
 local origin = api.nvim_get_current_win()
 
 local function snapshot()
@@ -63,14 +88,18 @@ local function snapshot()
       watchers = vim.tbl_count(tree.watchers),
       cursor = api.nvim_win_get_cursor(tree.win),
       buf = tree.buf,
+      root = tree.root,
+      selected = tree.nodes[api.nvim_win_get_cursor(tree.win)[1]].path,
     } or nil,
   }
   vim.fn.writefile({ vim.json.encode(value) }, fixture .. "/snapshot.json")
 end
 vim.keymap.set({ "n", "i" }, "<F12>", snapshot)
-vim.keymap.set("n", "<F6>", function()
-  require("file_tools").toggle({ root = fixture })
-end)
+if not integrated then
+  vim.keymap.set("n", "<F6>", function()
+    require("file_tools").toggle({ root = fixture })
+  end)
+end
 if theme_test then
   local index = 0
   vim.keymap.set("n", "<F7>", function()

@@ -1,7 +1,11 @@
 local h = dofile("tests/helpers.lua")
 local api = vim.api
-local files = require("file_tools")
-files.setup({ lsp = { timeout_ms = 10000 } })
+local integrated = vim.env.FILE_TOOLS_INTEGRATED == "1"
+local files
+if not integrated then
+  files = require("file_tools")
+  files.setup({ lsp = { timeout_ms = 10000 } })
+end
 h.write(
   h.root .. "/tsconfig.json",
   { '{"compilerOptions":{"module":"commonjs","strict":true},"include":["*.ts"]}' }
@@ -10,17 +14,24 @@ local source = h.write(h.root .. "/before.ts", { "export const value = 1;" })
 local reference =
   h.write(h.root .. "/main.ts", { 'import { value } from "./before";', "console.log(value);" })
 vim.cmd.edit(source)
+files = files or require("file_tools")
 local source_buf = api.nvim_get_current_buf()
-local id = assert(vim.lsp.start({
+local start = integrated and assert(_G.config_test_real_lsp_start) or vim.lsp.start
+local capabilities = integrated and vim.deepcopy(vim.lsp.config["ts_ls"].capabilities)
+  or vim.tbl_deep_extend("force", vim.lsp.protocol.make_client_capabilities(), files.capabilities())
+assert(capabilities.workspace.fileOperations.willRename, "Missing configured file-operation capabilities")
+if integrated then
+  assert(
+    capabilities.textDocument.completion.completionItem.snippetSupport,
+    "Missing configured completion capabilities"
+  )
+end
+local id = assert(start({
   name = "file-tools-typescript-test",
   cmd = { "typescript-language-server", "--stdio" },
   root_dir = h.root,
   init_options = vim.env.FILE_TOOLS_TSSERVER and { tsserver = { path = vim.env.FILE_TOOLS_TSSERVER } } or nil,
-  capabilities = vim.tbl_deep_extend(
-    "force",
-    vim.lsp.protocol.make_client_capabilities(),
-    files.capabilities()
-  ),
+  capabilities = capabilities,
 }))
 local client = assert(vim.lsp.get_client_by_id(id))
 assert(

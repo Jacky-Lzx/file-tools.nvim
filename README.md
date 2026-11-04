@@ -132,6 +132,7 @@ stylua --check lua plugin tests/*.lua
 python3 tests/tui.py                      # real PTY tree interaction
 FILE_TOOLS_CONFIGURED=1 python3 tests/tui.py # current Neovim configuration
 FILE_TOOLS_THEME_TEST=1 python3 tests/tui.py # real theme switches in the visible tree
+FILE_TOOLS_CONFIGURED=1 FILE_TOOLS_INTEGRATED=1 FILE_TOOLS_THEME_TEST=1 python3 tests/tui.py # actual configured e/E/cw mappings
 nvim --headless -u NONE -i NONE -n -l tests/real_lsp.lua # installed TypeScript server
 ```
 
