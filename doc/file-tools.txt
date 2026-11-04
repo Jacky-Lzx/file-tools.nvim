@@ -1,6 +1,6 @@
-*file-tools.txt*  File operations, tree and Yazi bridge
+*file-tools.txt*  File operations and tree
 
-Requirements: Neovim 0.11+, optional yazi and ya executables.
+Requirements: Neovim 0.11+. No external program dependencies.
 No mappings, netrw replacement, cwd changes or LSP configuration are automatic.
 
 COMMAND                                                        *:FileTools*
@@ -9,9 +9,6 @@ COMMAND                                                        *:FileTools*
     :FileTools close
     :FileTools find [directory]
     :FileTools refresh
-    :FileTools yazi [path]
-    :FileTools yazi-cwd
-    :FileTools yazi-toggle
     :FileTools create path       Trailing / creates a directory.
     :FileTools rename path       Move the current file buffer to path.
 
@@ -32,7 +29,6 @@ TREE                                                     *file-tools-tree*
     -                       Use parent directory as tree root.
     C                       Use selected directory as tree root.
     f                       Reveal the editor's file.
-    z                       Open Yazi at the selected entry.
     q                       Close tree.
     ?                       Show keys.
     /                       Native Neovim filename search.
@@ -57,9 +53,6 @@ LUA API                                                   *file-tools-api*
     files.rename("/project/main.lua", "/project/app.lua")
     files.copy("/project/assets", "/project/assets-copy")
     files.delete("/project/assets-copy", { recursive = true })
-    files.yazi({ path = "/project/app.lua" })
-    require("file_tools.yazi").toggle({ resume = true })
-    require("file_tools.yazi").close()
 <
 setup() is optional. It registers the command and configures defaults; UI modules
 load only when used. No global key mappings are installed. Paths are normalized
@@ -97,34 +90,6 @@ After mutation, buffers synchronize and matching servers receive did-file
 notifications. Rename detaches/reattaches open documents using public Neovim APIs
 so servers receive didClose/didOpen under the correct URI.
 
-YAZI                                                      *file-tools-yazi*
-
-Yazi uses an embedded floating PTY. Opening while it is running shows the same
-session. Enter chooses files; additional files open in new tabs. The original
-editing window receives the first file. From the tree, the selected entry is
-used and chosen files return to the editing window. cwd never changes.
-
-In terminal mode, Yazi owns its keys. Use <C-\><C-n> to enter terminal-normal
-mode, then q or <Esc> to hide the float while keeping Yazi alive. yazi-toggle
-resumes it. After exit, resume=true opens the last directory. close() terminates
-the process, discarding pending selections. Temp files, buffers and the DDS
-subscriber are cleaned on exit. VimResized adjusts the float.
-
-The optional ya sub subscriber filters events to this instance's client ID and
-reconciles rename, move, bulk-rename, delete and trash events. These events arrive
-AFTER the filesystem operation: will-file refactoring is unavailable. There is a
-brief subscription startup window. If ya is absent the chooser still works but
-file-operation synchronization is unavailable. Creation/copy events and changes
-by unrelated Yazi instances are not synchronized. Complex bulk renames involving
-swaps or intermediate paths that have already disappeared can be refused with
-a warning; unsaved buffers are retained. Newline-containing chooser paths are
-not supported by Yazi's line-based chooser file.
-
-External deletion keeps dirty text as an unnamed buffer and records the old
-name in b:file_tools_deleted_path. For deleted folders the bridge infers folder
-kind from open descendants; without them, folder-only LSP filters cannot be
-inferred after deletion. The plugin does not reload arbitrary buffers on exit.
-
 OTHER FILE FRONTENDS                                   *file-tools-reconcile*
 >
     files.reconcile({ kind = "Rename", path = old, to = new })
@@ -134,6 +99,9 @@ OTHER FILE FRONTENDS                                   *file-tools-reconcile*
 Call only after a completed external operation. reconcile returns true or
 nil, error. It never mutates the filesystem and sends did-file notifications
 only. Normal create/rename/delete/copy return an event or nil, error.
+External deletion keeps dirty text as an unnamed buffer and records the old
+name in b:file_tools_deleted_path. For deleted folders, supply directory=true
+if the folder kind cannot be inferred from open descendants.
 
 Successful changes emit User FileToolsChanged with ev.data containing kind
 (Create/Rename/Delete), absolute path, optional to, directory, and external=true
@@ -147,10 +115,8 @@ CONFIGURATION                                           *file-tools-config*
         width = 40, side = "left", show_hidden = false,
         follow = true, max_entries = 5000,
       },
-      yazi = { command = "yazi", bridge = true, width = 0.9, height = 0.85 },
     })
 <
-Yazi width/height are fractions in (0, 1]. side is left or right. Set bridge=false
-to use only its terminal/chooser. Use :checkhealth file_tools for diagnostics.
+tree.side is left or right. Use :checkhealth file_tools for diagnostics.
 
 vim:tw=78:ts=8:noet:ft=help:norl:

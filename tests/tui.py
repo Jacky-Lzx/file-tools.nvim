@@ -1,4 +1,4 @@
-"""Drive Neovim and the real Yazi through PTY input, with rendered-cell checks."""
+"""Drive the native file tree through PTY input, with rendered-cell checks."""
 import fcntl
 import json
 import os
@@ -19,7 +19,6 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
     (fixture / "src").mkdir()
     (fixture / "src/child.txt").write_text("child\n")
     (fixture / "current.txt").write_text("current\n")
-    (fixture / "rename.txt").write_text("rename\n")
     (fixture / ".hidden").write_text("hidden\n")
     master, slave = pty.openpty()
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 140, 0, 0))
@@ -27,11 +26,6 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
                FILE_TOOLS_FIXTURE=str(fixture), XDG_STATE_HOME=str(fixture / "state"),
                XDG_CACHE_HOME=str(fixture / "cache"), NVIM_LOG_FILE=str(fixture / "nvim.log"),
                NVIM_SMOKE_TEST="1", NVIM_LAZY_LOCKFILE=str(fixture / "lazy-lock.json"))
-    if not configured:
-        yazi_config = fixture / "yazi-config"
-        yazi_config.mkdir()
-        (yazi_config / "keymap.toml").write_text('[[mgr.prepend_keymap]]\non = "F"\nrun = "filter --smart"\n[[mgr.prepend_keymap]]\non = ["c", "w"]\nrun = "rename --empty=all"\n')
-        env["YAZI_CONFIG_HOME"] = str(yazi_config)
     init = str(Path.home() / ".config/nvim/init.lua") if configured else "NONE"
     child = subprocess.Popen(["nvim", "--cmd", "let g:loaded_wakatime=1", "-u", init,
                               "-i", "NONE", "-n", "-c", "luafile " + str(root / "tests/tui.lua")],
@@ -95,31 +89,10 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
         os.kill(child.pid, signal.SIGWINCH)
         send("q")
         snapshot(lambda v: not v.get("tree"), "Tree close leaked state")
-        send("\x1b[18~")  # F7: real Yazi
-        running = snapshot(lambda v: v.get("yazi", {}).get("bridge_ready") and "rename.txt" in "\n".join(v["yazi"]["lines"]), "Real Yazi or DDS bridge did not start", 10)
-        assert "rename.txt" in running["screen"], "Yazi did not render visible cells"
-        # Use real Yazi's find and rename inputs, not a fabricated DDS event.
-        send("Frename.txt\r")
-        drain(0.2)
-        send("cw")
-        drain(0.2)
-        send("\x05\x15renamed-yazi.txt\r")
-        snapshot(lambda v: (fixture / "renamed-yazi.txt").exists() and any(b["name"].endswith("/renamed-yazi.txt") and b["modified"] for b in v["buffers"]), "Yazi rename did not synchronize dirty buffer")
-        assert (fixture / "renamed-yazi.txt").read_text() == "rename\n"
-        send("F\x15renamed-yazi.txt\r")
-        send("\x1c\x0e")  # Ctrl-\ Ctrl-n: terminal-normal
-        send("q")
-        hidden = snapshot(lambda v: v.get("yazi") and not v["yazi"]["visible"] and v["origin"], "Yazi hide failed")
-        send("\x1b[19~")  # F8: resume same process
-        resumed = snapshot(lambda v: v.get("yazi", {}).get("visible"), "Yazi resume failed")
-        assert resumed["yazi"]["id"] == running["yazi"]["id"]
-        send("\r")  # Choose hovered file in real Yazi
-        snapshot(lambda v: not v.get("yazi") and v["origin"] and v["current"].endswith("/renamed-yazi.txt"), "Yazi chooser did not return to origin")
-        assert not Path(running["yazi"]["temp"]).exists(), "Yazi temp directory leaked"
         assert len(transcript) > 1000
-        print("PTY" + (" (configured)" if configured else "") + ": rendered tree, folding/opening, create/rename prompts, hidden files, resize, real Yazi rename, DDS, hide/resume and cleanup passed")
+        print("PTY" + (" (configured)" if configured else "") + ": rendered tree, folding/opening, create/rename prompts, hidden files, resize and cleanup passed")
     finally:
-        send("\x1c\x0e\x1b:qa!\r")
+        send("\x1b:qa!\r")
         try:
             child.wait(timeout=3)
         except subprocess.TimeoutExpired:

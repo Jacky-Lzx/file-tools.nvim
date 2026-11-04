@@ -7,14 +7,10 @@ vim.o.laststatus = 2
 require("file_tools").setup({ tree = { follow = true } })
 vim.cmd.edit(vim.fn.fnameescape(fixture .. "/current.txt"))
 local origin = api.nvim_get_current_win()
-local renamed_buf = vim.fn.bufadd(fixture .. "/rename.txt")
-vim.fn.bufload(renamed_buf)
-api.nvim_buf_set_lines(renamed_buf, 0, -1, false, { "unsaved yazi" })
 
 local function snapshot()
   vim.cmd.redraw()
   local tree = package.loaded["file_tools.tree"] and require("file_tools.tree").state()
-  local yazi = package.loaded["file_tools.yazi"] and require("file_tools.yazi").state()
   local screen = {}
   for row = 1, vim.o.lines do
     local line = {}
@@ -40,28 +36,12 @@ local function snapshot()
       width = api.nvim_win_get_width(tree.win),
       watchers = vim.tbl_count(tree.watchers),
     } or nil,
-    yazi = yazi and {
-      id = yazi.id,
-      bridge_ready = yazi.bridge_ready,
-      visible = yazi.win ~= nil and api.nvim_win_is_valid(yazi.win),
-      temp = yazi.temp,
-      lines = api.nvim_buf_get_lines(yazi.buf, 0, -1, false),
-    } or nil,
   }
   vim.fn.writefile({ vim.json.encode(value) }, fixture .. "/snapshot.json")
 end
-vim.keymap.set({ "n", "t", "i" }, "<F12>", snapshot)
+vim.keymap.set({ "n", "i" }, "<F12>", snapshot)
 vim.keymap.set("n", "<F6>", function()
   require("file_tools").toggle({ root = fixture })
-end)
-vim.keymap.set("n", "<F7>", function()
-  require("file_tools").yazi({ path = fixture })
-end)
-vim.keymap.set("n", "<F8>", function()
-  require("file_tools.yazi").toggle()
-end)
-vim.keymap.set("n", "<F9>", function()
-  require("file_tools.yazi").close()
 end)
 vim.api.nvim_create_autocmd("VimEnter", {
   once = true,

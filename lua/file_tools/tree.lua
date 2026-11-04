@@ -368,9 +368,6 @@ local function map(state)
       local win = target_window(state)
       reveal(state, api.nvim_buf_get_name(api.nvim_win_get_buf(win)))
     end,
-    z = function()
-      require("file_tools.yazi").open()
-    end,
     y = function()
       local node = selected(state)
       if node and node.path then
@@ -413,7 +410,7 @@ local function map(state)
     end,
     ["?"] = function()
       vim.notify(
-        "file-tools tree\nEnter/l open or fold · h parent/fold · s/S split · t tab\na create · r move · d delete · y/x copy/cut · p paste · Y copy path\n. hidden · R refresh · - parent root · C set root · f reveal · z Yazi · q close\n/ search filenames with Neovim's normal search",
+        "file-tools tree\nEnter/l open or fold · h parent/fold · s/S split · t tab\na create · r move · d delete · y/x copy/cut · p paste · Y copy path\n. hidden · R refresh · - parent root · C set root · f reveal · q close\n/ search filenames with Neovim's normal search",
         vim.log.levels.INFO
       )
     end,
@@ -550,14 +547,6 @@ end
 
 function M.state()
   return states[api.nvim_get_current_tabpage()]
-end
-
-function M.context()
-  local state = M.state()
-  if valid(state) and api.nvim_get_current_win() == state.win then
-    local node = selected(state)
-    return node and node.path or state.root, target_window(state)
-  end
 end
 
 function M.setup()

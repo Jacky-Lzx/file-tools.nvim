@@ -17,12 +17,6 @@ function M.setup()
         files.find({ root = argument })
       elseif sub == "refresh" then
         require("file_tools.tree").refresh()
-      elseif sub == "yazi" then
-        files.yazi({ path = argument })
-      elseif sub == "yazi-cwd" then
-        files.yazi({ cwd = true })
-      elseif sub == "yazi-toggle" then
-        require("file_tools.yazi").toggle({ resume = true })
       elseif sub == "create" then
         assert(argument, "expected a path")
         local event, failure = files.create(argument, { directory = argument:sub(-1) == "/" })
@@ -40,7 +34,7 @@ function M.setup()
     end
   end, {
     nargs = "*",
-    desc = "File tree, operations and Yazi",
+    desc = "File tree and operations",
     complete = function(lead, line)
       if line:match("^%s*FileTools%s+[^%s]*$") then
         return vim.tbl_filter(function(item)
@@ -51,9 +45,6 @@ function M.setup()
           "close",
           "find",
           "refresh",
-          "yazi",
-          "yazi-cwd",
-          "yazi-toggle",
           "create",
           "rename",
         })

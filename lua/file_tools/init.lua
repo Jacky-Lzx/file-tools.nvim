@@ -15,10 +15,6 @@ for _, name in ipairs({ "open", "close", "toggle", "find" }) do
   end
 end
 
-function M.yazi(opts)
-  return require("file_tools.yazi").open(opts)
-end
-
 for _, name in ipairs({ "create", "rename", "copy", "delete", "reconcile" }) do
   M[name] = function(...)
     return require("file_tools.operations")[name](...)

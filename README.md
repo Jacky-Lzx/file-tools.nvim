@@ -1,8 +1,7 @@
 # file-tools.nvim
 
 File operations, buffer paths and language servers under one owner, with a
-tab-local tree and an optional Yazi terminal/chooser. Requires Neovim 0.11+;
-no Lua dependencies. Yazi integration needs `yazi` and optionally `ya`.
+tab-local tree. Requires Neovim 0.11+; no Lua or external program dependencies.
 
 The plugin does not change global mappings, working directories, netrw, or LSP
 configuration automatically. Existing file plugins can stay installed while you
@@ -21,13 +20,12 @@ Example lazy.nvim spec (add it yourself when ready):
   opts = {},
   keys = {
     { "<leader>e", "<Cmd>FileTools toggle<CR>", desc = "File tree" },
-    { "<leader>E", "<Cmd>FileTools yazi<CR>", desc = "Yazi" },
   },
 }
 ```
 
 `:FileTools` toggles the tree. `open [directory]`, `close`, `find` and `refresh`
-manage it. `:FileTools yazi [path]`, `yazi-cwd` and `yazi-toggle` manage Yazi.
+manage it.
 `:FileTools create path` creates a file (trailing `/` creates a directory), and
 `:FileTools rename destination` moves the current file. Arguments are literal
 paths with spaces supported; no shell quotes are needed.
@@ -44,7 +42,7 @@ paths with spaces supported; no shell quotes are needed.
 | `Y` | Copy absolute path to unnamed and clipboard registers |
 | `.`, `R` | Toggle dotfiles, refresh |
 | `-`, `C` | Use parent or selected directory as root |
-| `f`, `z` | Reveal editor file, open selected entry in Yazi |
+| `f` | Reveal editor file |
 | `q`, `?`, `/` | Close, help, native filename search |
 
 Only expanded directories are scanned. Visible directories are watched (up to
@@ -60,7 +58,6 @@ files.setup({})
 files.open({ root = "/project", focus = false })
 files.find()
 files.close()
-files.yazi({ path = "/project/main.lua" })
 
 local event, err = files.create("/project/new.lua")
 files.create("/project/assets", { directory = true })
@@ -96,23 +93,6 @@ Successful operations emit `User FileToolsChanged`, with the event in `ev.data`:
 `kind` (`Create`, `Rename`, `Delete`), absolute `path`, optional `to`, `directory`,
 and `external` for reconciled operations. Copies emit `Create`.
 
-## Yazi
-
-Yazi runs in a floating terminal and returns chosen files to the original editor
-window; further choices open in tabs. From the tree it starts at the selected
-entry. Use `<C-\><C-n>` then `q` to hide it, and `:FileTools yazi-toggle` to resume
-the same process. `require("file_tools.yazi").close()` terminates it.
-
-The `ya sub` bridge handles this instance's rename, move, bulk-rename, delete and
-trash events. [DDS events](https://yazi-rs.github.io/docs/dds/) report completed
-operations, so this path can send **did-file notifications only**. It cannot run
-will-file refactoring. There is a brief subscription startup window. Missing
-`ya` leaves the terminal/chooser usable without file-operation synchronization.
-Creation/copy events and operations in other Yazi instances are not synchronized.
-Complex bulk swaps or already-disappeared intermediate paths can be refused
-with a warning. External deletions retain unsaved text. Newline-containing paths
-are not supported by the line-based chooser file.
-
 ## Configuration and checks
 
 ```lua
@@ -122,7 +102,6 @@ require("file_tools").setup({
     width = 40, side = "left", show_hidden = false,
     follow = true, max_entries = 5000,
   },
-  yazi = { command = "yazi", bridge = true, width = 0.9, height = 0.85 },
 })
 ```
 
@@ -130,13 +109,13 @@ require("file_tools").setup({
 `:checkhealth file_tools` checks dependencies. Run:
 
 ```sh
-bash tests/run.sh                         # filesystem, buffers, LSP policies, tree, DDS parser
+bash tests/run.sh                         # filesystem, buffers, LSP policies, tree
 stylua --check lua plugin tests/*.lua
-python3 tests/tui.py                      # real PTY + Yazi, needs local DDS socket access
-FILE_TOOLS_CONFIGURED=1 python3 tests/tui.py # current Neovim and Yazi configuration
+python3 tests/tui.py                      # real PTY tree interaction
+FILE_TOOLS_CONFIGURED=1 python3 tests/tui.py # current Neovim configuration
 nvim --headless -u NONE -i NONE -n -l tests/real_lsp.lua # installed TypeScript server
 ```
 
 For a nonstandard TypeScript installation, set `FILE_TOOLS_TSSERVER` to its
 `lib/tsserver.js`. Basic tests run in CI on Neovim 0.11.5 and stable; the real
-PTY/Yazi and TypeScript tests are local acceptance checks.
+PTY and TypeScript tests are local acceptance checks.
