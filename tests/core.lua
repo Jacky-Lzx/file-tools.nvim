@@ -53,6 +53,16 @@ h.test("rename dirty descendants without saving and retain buffer identity", fun
   h.eq({ "unsaved" }, api.nvim_buf_get_lines(buf, 0, -1, false))
   assert(vim.bo[buf].modified)
   h.eq({ "original" }, vim.fn.readfile(h.root .. "/moved/child.txt"))
+  assert(vim.fn.bufnr(name) < 0, "old path placeholder leaked")
+  api.nvim_buf_call(buf, function()
+    vim.cmd("silent undo")
+  end)
+  h.eq({ "original" }, api.nvim_buf_get_lines(buf, 0, -1, false))
+  assert(not vim.bo[buf].modified, "rename changed undo save points")
+  api.nvim_buf_call(buf, function()
+    vim.cmd("silent redo")
+  end)
+  assert(vim.bo[buf].modified)
   api.nvim_buf_call(buf, function()
     vim.cmd.write()
   end)
@@ -65,9 +75,31 @@ h.test("destination buffers and path boundaries are protected", function()
   vim.fn.bufload(buf)
   local source = vim.fn.bufadd(name)
   vim.fn.bufload(source)
+  assert(not op.create(h.root .. "/target"))
+  assert(not op.copy(name, h.root .. "/target"))
   assert(not op.rename(name, h.root .. "/target"))
   assert(uv.fs_stat(name))
   h.eq(false, require("file_tools.path").contains(h.root .. "/a", h.root .. "/ab"))
+  local unopened = h.write(h.root .. "/unopened-source")
+  assert(not op.rename(unopened, h.root .. "/target"))
+  assert(uv.fs_stat(unopened), "rename into existing buffer was allowed without source buffer")
+end)
+
+h.test("custom write handlers are rejected before mutation", function()
+  local name = h.write(h.root .. "/custom-writer")
+  local buf = vim.fn.bufadd(name)
+  vim.fn.bufload(buf)
+  local invoked = false
+  local ac = api.nvim_create_autocmd("BufWriteCmd", {
+    buffer = buf,
+    callback = function()
+      invoked = true
+    end,
+  })
+  assert(not op.rename(name, h.root .. "/custom-new"))
+  assert(uv.fs_stat(name))
+  assert(not invoked)
+  api.nvim_del_autocmd(ac)
 end)
 
 h.test("delete refuses unsaved data and preserves split layout", function()
@@ -192,6 +224,32 @@ h.test("failed filesystem mutation rolls back will edits", function()
   h.eq({ "original" }, api.nvim_buf_get_lines(buf, 0, -1, false))
   assert(not vim.bo[buf].modified)
   h.eq(1, #server.calls)
+end)
+
+h.test("stale responses never roll back newer user text", function()
+  local name = h.write(h.root .. "/stale.lua")
+  local buf = vim.fn.bufadd(name)
+  vim.fn.bufload(buf)
+  local first, second = client(1), client(2)
+  local edit = {
+    changes = {
+      [vim.uri_from_fname(name)] = {
+        {
+          range = { start = { line = 0, character = 0 }, ["end"] = { line = 0, character = 0 } },
+          newText = "prefix ",
+        },
+      },
+    },
+  }
+  first.edit = edit
+  second.request_sync = function()
+    api.nvim_buf_set_lines(buf, 0, -1, false, { "new user text" })
+    return { result = nil }
+  end
+  clients = { first, second }
+  assert(not op.rename(name, h.root .. "/stale-new.lua"))
+  h.eq({ "new user text" }, api.nvim_buf_get_lines(buf, 0, -1, false))
+  assert(uv.fs_stat(name))
 end)
 
 h.test("external changes are post-only and preserve dirty deleted buffers", function()

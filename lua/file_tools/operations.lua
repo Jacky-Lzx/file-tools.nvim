@@ -7,6 +7,7 @@ local function validate(event, opts)
   local source = uv.fs_lstat(event.path)
   if event.kind == "Create" then
     assert(not source, "path already exists: " .. event.path)
+    buffers.check_destination(event.path)
   else
     assert(source, "path does not exist: " .. event.path)
     event.directory = source.type == "directory"
@@ -159,6 +160,11 @@ function M.reconcile(event)
       buffers.rename(event.path, event.to)
     elseif event.kind == "Delete" then
       assert(not uv.fs_lstat(event.path), "external deletion is not complete")
+      for _, item in ipairs(buffers.under(event.path)) do
+        if item.name ~= event.path then
+          event.directory = true
+        end
+      end
       buffers.delete(event.path)
     else
       assert(uv.fs_lstat(event.path), "external creation is not complete")

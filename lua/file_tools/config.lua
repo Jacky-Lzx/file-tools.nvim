@@ -7,10 +7,14 @@ M.defaults = {
 M.options = vim.deepcopy(M.defaults)
 
 function M.setup(opts)
-  M.options = vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), opts or {})
-  assert(M.options.tree.side == "left" or M.options.tree.side == "right", "tree.side must be left or right")
-  assert(M.options.tree.width >= 10, "tree.width must be at least 10")
-  assert(M.options.lsp.timeout_ms > 0, "lsp.timeout_ms must be positive")
+  local config = vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), opts or {})
+  assert(config.tree.side == "left" or config.tree.side == "right", "tree.side must be left or right")
+  assert(config.tree.width >= 10, "tree.width must be at least 10")
+  assert(config.tree.max_entries >= 2, "tree.max_entries must be at least 2")
+  assert(config.yazi.width > 0 and config.yazi.width <= 1, "yazi.width must be in (0, 1]")
+  assert(config.yazi.height > 0 and config.yazi.height <= 1, "yazi.height must be in (0, 1]")
+  assert(config.lsp.timeout_ms > 0, "lsp.timeout_ms must be positive")
+  M.options = config
 end
 
 return M

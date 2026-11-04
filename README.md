@@ -1,12 +1,66 @@
 # file-tools.nvim
 
-File operations, buffer paths and language servers under one owner. Requires
-Neovim 0.11+; no Lua dependencies. This plugin does not change global mappings,
-working directories, netrw, or LSP configuration automatically.
+File operations, buffer paths and language servers under one owner, with a
+tab-local tree and an optional Yazi terminal/chooser. Requires Neovim 0.11+;
+no Lua dependencies. Yazi integration needs `yazi` and optionally `ya`.
+
+The plugin does not change global mappings, working directories, netrw, or LSP
+configuration automatically. Existing file plugins can stay installed while you
+try it; operations performed through those plugins are not intercepted.
+
+## Load locally
+
+Example lazy.nvim spec (add it yourself when ready):
+
+```lua
+{
+  dir = "/Users/zexili/Documents/Github/nvim_plugins/file-tools.nvim",
+  name = "file-tools.nvim",
+  main = "file_tools",
+  cmd = "FileTools",
+  opts = {},
+  keys = {
+    { "<leader>e", "<Cmd>FileTools toggle<CR>", desc = "File tree" },
+    { "<leader>E", "<Cmd>FileTools yazi<CR>", desc = "Yazi" },
+  },
+}
+```
+
+`:FileTools` toggles the tree. `open [directory]`, `close`, `find` and `refresh`
+manage it. `:FileTools yazi [path]`, `yazi-cwd` and `yazi-toggle` manage Yazi.
+`:FileTools create path` creates a file (trailing `/` creates a directory), and
+`:FileTools rename destination` moves the current file. Arguments are literal
+paths with spaces supported; no shell quotes are needed.
+
+## Tree
+
+| Keys | Action |
+| --- | --- |
+| Enter, `l`, double-click | Open a file or fold a directory |
+| `h` | Collapse or select parent |
+| `s`, `S`, `t` | Vertical split, horizontal split, tab |
+| `a`, `r`, `d` | Create, move/rename, confirmed permanent delete |
+| `y`, `x`, `p` | Copy, cut, paste |
+| `Y` | Copy absolute path to unnamed and clipboard registers |
+| `.`, `R` | Toggle dotfiles, refresh |
+| `-`, `C` | Use parent or selected directory as root |
+| `f`, `z` | Reveal editor file, open selected entry in Yazi |
+| `q`, `?`, `/` | Close, help, native filename search |
+
+Only expanded directories are scanned. Visible directories are watched (up to
+64 per tree), with manual refresh available. Large trees stop at an entry limit.
+Directory symlinks are displayed without recursive traversal. Files open in the
+editing window, and following the current file does not steal focus.
+
+## Lua API
 
 ```lua
 local files = require("file_tools")
 files.setup({})
+files.open({ root = "/project", focus = false })
+files.find()
+files.close()
+files.yazi({ path = "/project/main.lua" })
 
 local event, err = files.create("/project/new.lua")
 files.create("/project/assets", { directory = true })
@@ -15,7 +69,7 @@ files.copy("/project/assets", "/project/assets-copy")
 files.delete("/project/assets-copy", { recursive = true })
 ```
 
-Operations return an event on success or `nil, error`. Parents must already
+Create, rename, copy and delete return an event or `nil, error`. Parents must already
 exist, destinations must be absent, and deleting a dirty buffer is refused.
 Directory renames retain buffer identity, unsaved text and undo history. Renaming
 does not save files. Ordinary `:write` works afterwards. Buffers with custom
@@ -42,4 +96,47 @@ Successful operations emit `User FileToolsChanged`, with the event in `ev.data`:
 `kind` (`Create`, `Rename`, `Delete`), absolute `path`, optional `to`, `directory`,
 and `external` for reconciled operations. Copies emit `Create`.
 
-Run `bash tests/run.sh` and `stylua --check lua tests/*.lua` for validation.
+## Yazi
+
+Yazi runs in a floating terminal and returns chosen files to the original editor
+window; further choices open in tabs. From the tree it starts at the selected
+entry. Use `<C-\><C-n>` then `q` to hide it, and `:FileTools yazi-toggle` to resume
+the same process. `require("file_tools.yazi").close()` terminates it.
+
+The `ya sub` bridge handles this instance's rename, move, bulk-rename, delete and
+trash events. [DDS events](https://yazi-rs.github.io/docs/dds/) report completed
+operations, so this path can send **did-file notifications only**. It cannot run
+will-file refactoring. There is a brief subscription startup window. Missing
+`ya` leaves the terminal/chooser usable without file-operation synchronization.
+Creation/copy events and operations in other Yazi instances are not synchronized.
+Complex bulk swaps or already-disappeared intermediate paths can be refused
+with a warning. External deletions retain unsaved text. Newline-containing paths
+are not supported by the line-based chooser file.
+
+## Configuration and checks
+
+```lua
+require("file_tools").setup({
+  lsp = { enabled = true, timeout_ms = 1500 },
+  tree = {
+    width = 40, side = "left", show_hidden = false,
+    follow = true, max_entries = 5000,
+  },
+  yazi = { command = "yazi", bridge = true, width = 0.9, height = 0.85 },
+})
+```
+
+`:help file-tools` documents the APIs, events, safeguards and limitations.
+`:checkhealth file_tools` checks dependencies. Run:
+
+```sh
+bash tests/run.sh                         # filesystem, buffers, LSP policies, tree, DDS parser
+stylua --check lua plugin tests/*.lua
+python3 tests/tui.py                      # real PTY + Yazi, needs local DDS socket access
+FILE_TOOLS_CONFIGURED=1 python3 tests/tui.py # current Neovim and Yazi configuration
+nvim --headless -u NONE -i NONE -n -l tests/real_lsp.lua # installed TypeScript server
+```
+
+For a nonstandard TypeScript installation, set `FILE_TOOLS_TSSERVER` to its
+`lib/tsserver.js`. Basic tests run in CI on Neovim 0.11.5 and stable; the real
+PTY/Yazi and TypeScript tests are local acceptance checks.

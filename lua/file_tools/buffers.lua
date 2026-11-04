@@ -18,6 +18,14 @@ local function clear_write_guard(buf)
   -- acknowledges the existing disk file without saving unsaved text, so the
   -- next ordinary :write works. Preflight excludes other custom write handlers.
   local modified = vim.bo[buf].modified
+  local history
+  local levels = vim.bo[buf].undolevels
+  if levels == -123456 then
+    levels = vim.go.undolevels
+  end
+  if modified and levels >= 0 then
+    history = assert(vim.uv.fs_mkdtemp(vim.fn.tempname() .. "-XXXXXX"))
+  end
   local autocmd = api.nvim_create_autocmd("BufWriteCmd", {
     buffer = buf,
     once = true,
@@ -26,9 +34,21 @@ local function clear_write_guard(buf)
     end,
   })
   local ok, err = pcall(api.nvim_buf_call, buf, function()
-    vim.cmd("silent keepalt write!")
+    -- Marking the no-op write complete changes undo save points. Retain them
+    -- through a private, short-lived native undo file for dirty buffers.
+    if history then
+      vim.cmd("silent noautocmd wundo! " .. vim.fn.fnameescape(history .. "/undo"))
+    end
+    local wrote, failure = pcall(vim.cmd, "silent keepalt write!")
+    if history then
+      vim.cmd("silent noautocmd rundo " .. vim.fn.fnameescape(history .. "/undo"))
+    end
+    assert(wrote, failure)
   end)
   pcall(api.nvim_del_autocmd, autocmd)
+  if history then
+    vim.fn.delete(history, "rf")
+  end
   vim.bo[buf].modified = modified
   assert(ok, err)
 end
@@ -44,21 +64,26 @@ function M.under(root)
   return result
 end
 
+function M.check_destination(to, sources)
+  sources = sources or {}
+  for _, buf in ipairs(api.nvim_list_bufs()) do
+    assert(
+      sources[buf] or not path.contains(to, api.nvim_buf_get_name(buf)),
+      "destination has an existing buffer: " .. api.nvim_buf_get_name(buf)
+    )
+  end
+end
+
 function M.check_rename(from, to)
   local sources = {}
   for _, item in ipairs(M.under(from)) do
     sources[item.buf] = true
   end
+  M.check_destination(to, sources)
   for _, item in ipairs(M.under(from)) do
     local target = path.remap(item.name, from, to)
     if api.nvim_buf_is_loaded(item.buf) then
       check_write_handlers(item.buf, target)
-    end
-    for _, buf in ipairs(api.nvim_list_bufs()) do
-      assert(
-        sources[buf] or api.nvim_buf_get_name(buf) ~= target,
-        "destination has an existing buffer: " .. target
-      )
     end
   end
 end
@@ -71,6 +96,11 @@ function M.rename(from, to)
       vim.lsp.buf_detach_client(item.buf, client.id)
     end
     api.nvim_buf_set_name(item.buf, path.remap(item.name, from, to))
+    -- :file creates an unloaded alternate buffer under the old name.
+    local alternate = vim.fn.bufnr(item.name)
+    if alternate > 0 and alternate ~= item.buf and not api.nvim_buf_is_loaded(alternate) then
+      api.nvim_buf_delete(alternate, { force = true })
+    end
     if api.nvim_buf_is_loaded(item.buf) then
       clear_write_guard(item.buf)
     end

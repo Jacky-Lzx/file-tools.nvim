@@ -1,0 +1,156 @@
+*file-tools.txt*  File operations, tree and Yazi bridge
+
+Requirements: Neovim 0.11+, optional yazi and ya executables.
+No mappings, netrw replacement, cwd changes or LSP configuration are automatic.
+
+COMMAND                                                        *:FileTools*
+
+    :FileTools [toggle|open] [directory]
+    :FileTools close
+    :FileTools find [directory]
+    :FileTools refresh
+    :FileTools yazi [path]
+    :FileTools yazi-cwd
+    :FileTools yazi-toggle
+    :FileTools create path       Trailing / creates a directory.
+    :FileTools rename path       Move the current file buffer to path.
+
+The argument after the action is one literal path, including spaces. Do not add
+shell quotes. Commands report errors through vim.notify. Lua operations return
+an event or nil, error. Use the tree's d mapping for confirmed deletion.
+
+TREE                                                     *file-tools-tree*
+
+    <CR>, l, double-click   Open a file or toggle a directory.
+    h                       Collapse directory or select parent.
+    s / S / t               Vertical split / horizontal split / tab.
+    a / r / d               Create / move or rename / delete permanently.
+    y / x / p               Copy / cut / paste (never overwrite).
+    Y                       Copy absolute path to unnamed and + registers.
+    .                       Toggle dotfiles.
+    R                       Refresh.
+    -                       Use parent directory as tree root.
+    C                       Use selected directory as tree root.
+    f                       Reveal the editor's file.
+    z                       Open Yazi at the selected entry.
+    q                       Close tree.
+    ?                       Show keys.
+    /                       Native Neovim filename search.
+
+Each tab has its own tree. Only expanded directories are scanned; directory
+symlinks are not traversed. Tree roots do not change cwd. Files open in the
+editing window, preserving the tree. Watchers refresh visible directories, with
+a limit of 64 watchers per tree. R refreshes when watchers are unavailable.
+An entry limit bounds rendering; narrow the root if it is reached. Unreadable
+directories are displayed as errors. Closing the tree releases its resources.
+
+LUA API                                                   *file-tools-api*
+>
+    local files = require("file_tools")
+    files.setup({})
+    files.toggle({ root = "/project" })
+    files.open({ root = "/project", reveal = "/project/main.lua", focus = false })
+    files.find()
+    files.close()
+    local event, err = files.create("/project/main.lua")
+    files.create("/project/assets", { directory = true })
+    files.rename("/project/main.lua", "/project/app.lua")
+    files.copy("/project/assets", "/project/assets-copy")
+    files.delete("/project/assets-copy", { recursive = true })
+    files.yazi({ path = "/project/app.lua" })
+    require("file_tools.yazi").toggle({ resume = true })
+    require("file_tools.yazi").close()
+<
+setup() is optional. It registers the command and configures defaults; UI modules
+load only when used. No global key mappings are installed. Paths are normalized
+to absolute paths, resolving parent symlinks while preserving leaf symlinks.
+Parent directories must exist. Destinations must be absent, including conflicting
+buffers. Directory self-moves and cross-device moves are refused. Symlink copies
+retain the link; copying a directory stages content in a sibling temporary path.
+
+Rename retains buffer identity, unsaved text and undo history without saving.
+The next ordinary :write works. Buffers with matching BufWriteCmd handlers are
+refused before moving. Dirty buffers briefly serialize their undo history in a
+private temporary directory to preserve undo save points while clearing Vim's
+renamed-file write guard; the temporary file is removed immediately.
+
+Delete refuses dirty buffers. A nonempty directory requires recursive=true.
+Tree deletion asks for confirmation with Cancel as the first choice. Deletion
+is permanent; it is not a trash or undo service. Window layout is retained.
+
+LSP                                                       *file-tools-lsp*
+
+Merge files.capabilities() into the capabilities passed to each server BEFORE
+starting it. setup() does not patch existing clients. Static and dynamic file
+operation registrations select recipients by workspace, URI scheme, glob,
+file/folder kind and case option. Rename considers both old and new paths.
+
+Will-file requests finish before mutation. Timeout, error, stale text, unsupported
+resource/annotated edits or multiple responses targeting the same document abort
+the operation. Supported text edits preserve each client's encoding and remain
+unsaved. Changed buffers are rechecked after requests. A failed filesystem
+mutation restores applied text; undo history from the attempted edit may remain.
+Recursive deletion can be partially completed on a filesystem failure. Operations
+are not atomic transactions. Copy sends didCreate only.
+
+After mutation, buffers synchronize and matching servers receive did-file
+notifications. Rename detaches/reattaches open documents using public Neovim APIs
+so servers receive didClose/didOpen under the correct URI.
+
+YAZI                                                      *file-tools-yazi*
+
+Yazi uses an embedded floating PTY. Opening while it is running shows the same
+session. Enter chooses files; additional files open in new tabs. The original
+editing window receives the first file. From the tree, the selected entry is
+used and chosen files return to the editing window. cwd never changes.
+
+In terminal mode, Yazi owns its keys. Use <C-\><C-n> to enter terminal-normal
+mode, then q or <Esc> to hide the float while keeping Yazi alive. yazi-toggle
+resumes it. After exit, resume=true opens the last directory. close() terminates
+the process, discarding pending selections. Temp files, buffers and the DDS
+subscriber are cleaned on exit. VimResized adjusts the float.
+
+The optional ya sub subscriber filters events to this instance's client ID and
+reconciles rename, move, bulk-rename, delete and trash events. These events arrive
+AFTER the filesystem operation: will-file refactoring is unavailable. There is a
+brief subscription startup window. If ya is absent the chooser still works but
+file-operation synchronization is unavailable. Creation/copy events and changes
+by unrelated Yazi instances are not synchronized. Complex bulk renames involving
+swaps or intermediate paths that have already disappeared can be refused with
+a warning; unsaved buffers are retained. Newline-containing chooser paths are
+not supported by Yazi's line-based chooser file.
+
+External deletion keeps dirty text as an unnamed buffer and records the old
+name in b:file_tools_deleted_path. For deleted folders the bridge infers folder
+kind from open descendants; without them, folder-only LSP filters cannot be
+inferred after deletion. The plugin does not reload arbitrary buffers on exit.
+
+OTHER FILE FRONTENDS                                   *file-tools-reconcile*
+>
+    files.reconcile({ kind = "Rename", path = old, to = new })
+    files.reconcile({ kind = "Delete", path = deleted, directory = true })
+    files.reconcile({ kind = "Create", path = created })
+<
+Call only after a completed external operation. reconcile returns true or
+nil, error. It never mutates the filesystem and sends did-file notifications
+only. Normal create/rename/delete/copy return an event or nil, error.
+
+Successful changes emit User FileToolsChanged with ev.data containing kind
+(Create/Rename/Delete), absolute path, optional to, directory, and external=true
+for reconciled operations. Copy emits Create. Tree views subscribe to this event.
+
+CONFIGURATION                                           *file-tools-config*
+>
+    require("file_tools").setup({
+      lsp = { enabled = true, timeout_ms = 1500 },
+      tree = {
+        width = 40, side = "left", show_hidden = false,
+        follow = true, max_entries = 5000,
+      },
+      yazi = { command = "yazi", bridge = true, width = 0.9, height = 0.85 },
+    })
+<
+Yazi width/height are fractions in (0, 1]. side is left or right. Set bridge=false
+to use only its terminal/chooser. Use :checkhealth file_tools for diagnostics.
+
+vim:tw=78:ts=8:noet:ft=help:norl:

@@ -1,0 +1,129 @@
+"""Drive Neovim and the real Yazi through PTY input, with rendered-cell checks."""
+import fcntl
+import json
+import os
+from pathlib import Path
+import pty
+import select
+import signal
+import struct
+import subprocess
+import tempfile
+import termios
+import time
+
+root = Path(__file__).resolve().parents[1]
+configured = os.environ.get("FILE_TOOLS_CONFIGURED") == "1"
+with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
+    fixture = Path(temporary).resolve()
+    (fixture / "src").mkdir()
+    (fixture / "src/child.txt").write_text("child\n")
+    (fixture / "current.txt").write_text("current\n")
+    (fixture / "rename.txt").write_text("rename\n")
+    (fixture / ".hidden").write_text("hidden\n")
+    master, slave = pty.openpty()
+    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 140, 0, 0))
+    env = dict(os.environ, TERM="xterm-256color", FILE_TOOLS_ROOT=str(root),
+               FILE_TOOLS_FIXTURE=str(fixture), XDG_STATE_HOME=str(fixture / "state"),
+               XDG_CACHE_HOME=str(fixture / "cache"), NVIM_LOG_FILE=str(fixture / "nvim.log"),
+               NVIM_SMOKE_TEST="1", NVIM_LAZY_LOCKFILE=str(fixture / "lazy-lock.json"))
+    if not configured:
+        yazi_config = fixture / "yazi-config"
+        yazi_config.mkdir()
+        (yazi_config / "keymap.toml").write_text('[[mgr.prepend_keymap]]\non = "F"\nrun = "filter --smart"\n[[mgr.prepend_keymap]]\non = ["c", "w"]\nrun = "rename --empty=all"\n')
+        env["YAZI_CONFIG_HOME"] = str(yazi_config)
+    init = str(Path.home() / ".config/nvim/init.lua") if configured else "NONE"
+    child = subprocess.Popen(["nvim", "--cmd", "let g:loaded_wakatime=1", "-u", init,
+                              "-i", "NONE", "-n", "-c", "luafile " + str(root / "tests/tui.lua")],
+                             stdin=slave, stdout=slave, stderr=slave, env=env)
+    transcript = bytearray()
+
+    def drain(duration=0.1):
+        deadline = time.monotonic() + duration
+        while time.monotonic() < deadline:
+            if select.select([master], [], [], min(0.02, max(0, deadline - time.monotonic())))[0]:
+                try:
+                    transcript.extend(os.read(master, 65536))
+                except OSError:
+                    break
+
+    def send(text):
+        os.write(master, text.encode())
+        drain()
+
+    def snapshot(predicate, label, timeout=5):
+        deadline = time.monotonic() + timeout
+        value = None
+        while time.monotonic() < deadline:
+            (fixture / "snapshot.json").unlink(missing_ok=True)
+            send("\x1b[24~")
+            if (fixture / "snapshot.json").exists():
+                value = json.loads((fixture / "snapshot.json").read_text())
+                if predicate(value):
+                    return value
+        raise AssertionError(label + "\n" + json.dumps(value, ensure_ascii=False) + "\n" + transcript.decode(errors="replace")[-2500:])
+
+    try:
+        for _ in range(100):
+            drain(0.1)
+            if (fixture / "ready").exists():
+                break
+        assert (fixture / "ready").exists(), transcript.decode(errors="replace")[-3000:]
+        send("\x1b[17~")  # F6 opens tree
+        opened = snapshot(lambda v: v.get("tree", {}).get("focus"), "Tree did not open")
+        assert "▸ src" in opened["screen"] and "current.txt" in opened["screen"]
+        assert ".hidden" not in "\n".join(opened["tree"]["lines"])
+        assert opened["tree"]["watchers"] > 0
+        send("/▸ src\rl")  # Expand src using actual l mapping
+        expanded = snapshot(lambda v: "child.txt" in "\n".join(v["tree"]["lines"]), "Directory did not expand")
+        send("j\r")  # Open child in editor
+        snapshot(lambda v: v["current"].endswith("/src/child.txt") and v["origin"], "Tree opened in wrong window")
+        send("\x17h")  # Ctrl-w h: back to tree
+        send("a")
+        drain(0.2)
+        send("\x15" + str(fixture / "created.txt") + "\r")
+        snapshot(lambda v: (fixture / "created.txt").exists() and v.get("tree", {}).get("focus"), "Create prompt failed")
+        # Search selects the newly created node without relying on its row number.
+        send("/created.txt\r")
+        send("r")
+        drain(0.2)
+        send("\x15" + str(fixture / "moved.txt") + "\r")
+        snapshot(lambda v: (fixture / "moved.txt").exists() and not (fixture / "created.txt").exists(), "Rename prompt failed")
+        send(".")
+        snapshot(lambda v: ".hidden" in "\n".join(v["tree"]["lines"]), "Hidden toggle failed")
+        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 100, 0, 0))
+        os.kill(child.pid, signal.SIGWINCH)
+        send("q")
+        snapshot(lambda v: not v.get("tree"), "Tree close leaked state")
+        send("\x1b[18~")  # F7: real Yazi
+        running = snapshot(lambda v: v.get("yazi", {}).get("bridge_ready") and "rename.txt" in "\n".join(v["yazi"]["lines"]), "Real Yazi or DDS bridge did not start", 10)
+        assert "rename.txt" in running["screen"], "Yazi did not render visible cells"
+        # Use real Yazi's find and rename inputs, not a fabricated DDS event.
+        send("Frename.txt\r")
+        drain(0.2)
+        send("cw")
+        drain(0.2)
+        send("\x05\x15renamed-yazi.txt\r")
+        snapshot(lambda v: (fixture / "renamed-yazi.txt").exists() and any(b["name"].endswith("/renamed-yazi.txt") and b["modified"] for b in v["buffers"]), "Yazi rename did not synchronize dirty buffer")
+        assert (fixture / "renamed-yazi.txt").read_text() == "rename\n"
+        send("F\x15renamed-yazi.txt\r")
+        send("\x1c\x0e")  # Ctrl-\ Ctrl-n: terminal-normal
+        send("q")
+        hidden = snapshot(lambda v: v.get("yazi") and not v["yazi"]["visible"] and v["origin"], "Yazi hide failed")
+        send("\x1b[19~")  # F8: resume same process
+        resumed = snapshot(lambda v: v.get("yazi", {}).get("visible"), "Yazi resume failed")
+        assert resumed["yazi"]["id"] == running["yazi"]["id"]
+        send("\r")  # Choose hovered file in real Yazi
+        snapshot(lambda v: not v.get("yazi") and v["origin"] and v["current"].endswith("/renamed-yazi.txt"), "Yazi chooser did not return to origin")
+        assert not Path(running["yazi"]["temp"]).exists(), "Yazi temp directory leaked"
+        assert len(transcript) > 1000
+        print("PTY" + (" (configured)" if configured else "") + ": rendered tree, folding/opening, create/rename prompts, hidden files, resize, real Yazi rename, DDS, hide/resume and cleanup passed")
+    finally:
+        send("\x1c\x0e\x1b:qa!\r")
+        try:
+            child.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            child.kill()
+            child.wait()
+        os.close(master)
+        os.close(slave)
