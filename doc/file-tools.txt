@@ -1,6 +1,7 @@
 *file-tools.txt*  File operations and tree
 
 Requirements: Neovim 0.11+. No external program dependencies.
+Optional dependency: theme-tools.nvim for shared semantic colors.
 No mappings, netrw replacement, cwd changes or LSP configuration are automatic.
 
 COMMAND                                                        *:FileTools*
@@ -106,6 +107,31 @@ if the folder kind cannot be inferred from open descendants.
 Successful changes emit User FileToolsChanged with ev.data containing kind
 (Create/Rename/Delete), absolute path, optional to, directory, and external=true
 for reconciled operations. Copy emits Create. Tree views subscribe to this event.
+
+SHARED THEMES                                             *file-tools-theme*
+
+When theme-tools.nvim is loaded, File-tools subscribes to its shared palette via
+on_change("file-tools.tree", callback). It follows managed theme switches,
+scheduled direct :colorscheme changes, transparency, palette overrides and
+refresh_palette(). The tree retains its buffer, folds and cursor. The shared
+subscription survives repeated theme-tools setup and supports later loading via
+User ThemeToolsReady. No theme manager or colorscheme is initialized by File-tools.
+
+Declare theme-tools.nvim as a plugin dependency to load its service first, or
+keep your existing theme-tools setup. Without it, standard highlight links work
+standalone. This is an optional dependency; file operations do not use it.
+
+    FileToolsRoot             ui.accent (bold)
+    FileToolsDirectory        palette.blue
+    FileToolsFile             ui.fg
+    FileToolsSymlink          palette.cyan
+    FileToolsNormal           ui.fg / ui.bg (including transparent backgrounds)
+    FileToolsCursorLine       ui.cursorline_bg
+    FileToolsWinSeparator     ui.border / ui.bg
+    FileToolsError, Warn       diagnostic.error / diagnostic.warn
+
+Window-local winhighlight maps the tree's normal background, cursor line and
+separator to these groups. Standard editor highlight groups remain unchanged.
 
 CONFIGURATION                                           *file-tools-config*
 >

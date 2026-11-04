@@ -1,7 +1,8 @@
 # file-tools.nvim
 
 File operations, buffer paths and language servers under one owner, with a
-tab-local tree. Requires Neovim 0.11+; no Lua or external program dependencies.
+tab-local tree. Requires Neovim 0.11+; no mandatory Lua or external program dependencies.
+`theme-tools.nvim` provides optional shared palette integration.
 
 The plugin does not change global mappings, working directories, netrw, or LSP
 configuration automatically. Existing file plugins can stay installed while you
@@ -17,6 +18,9 @@ Example lazy.nvim spec (add it yourself when ready):
   name = "file-tools.nvim",
   main = "file_tools",
   cmd = "FileTools",
+  dependencies = {
+    { dir = "/Users/zexili/Documents/Github/nvim_plugins/theme-tools.nvim", name = "theme-tools.nvim" },
+  },
   opts = {},
   keys = {
     { "<leader>e", "<Cmd>FileTools toggle<CR>", desc = "File tree" },
@@ -93,6 +97,20 @@ Successful operations emit `User FileToolsChanged`, with the event in `ev.data`:
 `kind` (`Create`, `Rename`, `Delete`), absolute `path`, optional `to`, `directory`,
 and `external` for reconciled operations. Copies emit `Create`.
 
+## Shared themes
+
+When `theme-tools.nvim` is loaded, the tree subscribes to its shared semantic
+palette using `on_change("file-tools.tree", ...)`. File and directory colors,
+symlinks, root title, sidebar background, cursor line, separator and error/warning
+rows follow theme switches, transparency and palette overrides. Open trees keep
+their buffers, selection and folds while colors update. Later loading through
+`ThemeToolsReady` is supported, and repeated setup keeps the subscription.
+
+The dependency declaration above loads the theme service before the tree. If
+`theme-tools` is already configured separately, keep that configuration. File-tools
+never initializes the theme manager or selects a colorscheme itself. Without the
+service, its highlight groups link to standard Neovim groups.
+
 ## Configuration and checks
 
 ```lua
@@ -109,13 +127,17 @@ require("file_tools").setup({
 `:checkhealth file_tools` checks dependencies. Run:
 
 ```sh
-bash tests/run.sh                         # filesystem, buffers, LSP policies, tree
+bash tests/run.sh                         # core, tree, themes (real sibling checkout when available)
 stylua --check lua plugin tests/*.lua
 python3 tests/tui.py                      # real PTY tree interaction
 FILE_TOOLS_CONFIGURED=1 python3 tests/tui.py # current Neovim configuration
+FILE_TOOLS_THEME_TEST=1 python3 tests/tui.py # real theme switches in the visible tree
 nvim --headless -u NONE -i NONE -n -l tests/real_lsp.lua # installed TypeScript server
 ```
 
 For a nonstandard TypeScript installation, set `FILE_TOOLS_TSSERVER` to its
 `lib/tsserver.js`. Basic tests run in CI on Neovim 0.11.5 and stable; the real
 PTY and TypeScript tests are local acceptance checks.
+Theme integration tests use the actual sibling `theme-tools.nvim` checkout;
+set `FILE_TOOLS_THEME_TOOLS` to use another checkout. Without it, the basic suite
+still checks standalone highlighting and reports the integration tests skipped.

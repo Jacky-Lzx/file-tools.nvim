@@ -105,7 +105,7 @@ function M.refresh(state, focus_path)
       append(
         { path = directory, error = true, depth = depth },
         string.rep("  ", depth) .. "! " .. label(err),
-        "DiagnosticError"
+        "FileToolsError"
       )
       return
     end
@@ -154,7 +154,7 @@ function M.refresh(state, focus_path)
   end
   walk(state.root, 0)
   if truncated then
-    append({ error = true }, "… entry limit reached; narrow the root", "DiagnosticWarn")
+    append({ error = true }, "… entry limit reached; narrow the root", "FileToolsWarn")
   end
   state.nodes = nodes
   vim.bo[state.buf].modifiable = true
@@ -475,6 +475,7 @@ function M.open(opts)
     foldcolumn = "0",
     spell = false,
     list = false,
+    winhighlight = "Normal:FileToolsNormal,NormalNC:FileToolsNormal,CursorLine:FileToolsCursorLine,WinSeparator:FileToolsWinSeparator",
   }) do
     vim.wo[state.win][name] = value
   end
@@ -550,14 +551,8 @@ function M.state()
 end
 
 function M.setup()
+  require("file_tools.theme").setup()
   local group = api.nvim_create_augroup("FileToolsTree", { clear = true })
-  local function highlights()
-    for name, link in pairs({ Root = "Title", Directory = "Directory", File = "Normal", Symlink = "Special" }) do
-      api.nvim_set_hl(0, "FileTools" .. name, { default = true, link = link })
-    end
-  end
-  highlights()
-  api.nvim_create_autocmd("ColorScheme", { group = group, callback = highlights })
   api.nvim_create_autocmd("BufEnter", {
     group = group,
     callback = function(ev)

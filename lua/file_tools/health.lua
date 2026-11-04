@@ -7,6 +7,12 @@ function M.check()
     vim.health.error("Neovim 0.11+ required")
   end
   vim.health.ok("No mandatory external dependencies")
+  local themes = package.loaded.theme_tools
+  if type(themes) == "table" and type(themes.on_change) == "function" then
+    vim.health.ok("theme-tools shared palette API available")
+  else
+    vim.health.info("theme-tools not loaded; tree uses standard highlight links")
+  end
   vim.health.info(
     "Merge require('file_tools').capabilities() before starting LSP clients for file-operation registrations"
   )

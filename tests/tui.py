@@ -14,6 +14,7 @@ import time
 
 root = Path(__file__).resolve().parents[1]
 configured = os.environ.get("FILE_TOOLS_CONFIGURED") == "1"
+theme_test = os.environ.get("FILE_TOOLS_THEME_TEST") == "1"
 with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
     fixture = Path(temporary).resolve()
     (fixture / "src").mkdir()
@@ -68,6 +69,23 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
         assert "▸ src" in opened["screen"] and "current.txt" in opened["screen"]
         assert ".hidden" not in "\n".join(opened["tree"]["lines"])
         assert opened["tree"]["watchers"] > 0
+        if theme_test:
+            frames = []
+            for expected in ("theme-tools-mocha", "theme-tools-dracula", "theme-tools-mocha"):
+                send("\x1b[18~")  # F7 switches real theme-tools themes
+                frame = snapshot(lambda v: v.get("palette", {}).get("name") == expected,
+                                 "Shared theme did not reach the tree")
+                palette, colors = frame["palette"], frame["colors"]
+                assert colors["Root"]["fg"] == int(palette["ui"]["accent"][1:], 16)
+                assert colors["Directory"]["fg"] == int(palette["palette"]["blue"][1:], 16)
+                assert colors["WinSeparator"]["fg"] == int(palette["ui"]["border"][1:], 16)
+                assert frame["tree"]["cursor"] == opened["tree"]["cursor"]
+                assert frame["tree"]["buf"] == opened["tree"]["buf"]
+                assert "▸ src" in frame["screen"]
+                frames.append(frame)
+            assert frames[0]["directory_attr"] != frames[1]["directory_attr"], "Visible directory cells did not change color"
+            assert frames[-1]["palette"]["ui"]["bg"] == "NONE"
+            assert frames[-1]["colors"]["Normal"].get("bg") is None
         send("/▸ src\rl")  # Expand src using actual l mapping
         expanded = snapshot(lambda v: "child.txt" in "\n".join(v["tree"]["lines"]), "Directory did not expand")
         send("j\r")  # Open child in editor
@@ -90,7 +108,7 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
         send("q")
         snapshot(lambda v: not v.get("tree"), "Tree close leaked state")
         assert len(transcript) > 1000
-        print("PTY" + (" (configured)" if configured else "") + ": rendered tree, folding/opening, create/rename prompts, hidden files, resize and cleanup passed")
+        print("PTY" + (" (configured)" if configured else "") + ": rendered tree, folding/opening, create/rename prompts, hidden files, resize and cleanup" + (", real shared theme colors and transparency" if theme_test else "") + " passed")
     finally:
         send("\x1b:qa!\r")
         try:
