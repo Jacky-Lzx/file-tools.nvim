@@ -3,6 +3,7 @@
 File operations, buffer paths and language servers under one owner, with a
 tab-local tree. Requires Neovim 0.11+; no mandatory Lua or external program dependencies.
 `theme-tools.nvim` provides optional shared palette integration.
+`nvim-web-devicons` provides optional file type icons.
 
 The plugin does not change global mappings, working directories, netrw, or LSP
 configuration automatically. Existing file plugins can stay installed while you
@@ -20,6 +21,7 @@ Example lazy.nvim spec (add it yourself when ready):
   cmd = "FileTools",
   dependencies = {
     { dir = "/Users/zexili/Documents/Github/nvim_plugins/theme-tools.nvim", name = "theme-tools.nvim" },
+    "nvim-tree/nvim-web-devicons",
   },
   opts = {},
   keys = {
@@ -53,6 +55,11 @@ Only expanded directories are scanned. Visible directories are watched (up to
 64 per tree), with manual refresh available. Large trees stop at an entry limit.
 Directory symlinks are displayed without recursive traversal. Files open in the
 editing window, and following the current file does not steal focus.
+
+File and folder icons are enabled by default and require a Nerd Font in your
+terminal. When available, `nvim-web-devicons` supplies filename/extension icons
+and their colors; otherwise files use a generic icon. Folder icons reflect their
+open/closed state. Set `tree.icons = false` to hide icons and skip the provider.
 
 ## Lua API
 
@@ -118,7 +125,7 @@ require("file_tools").setup({
   lsp = { enabled = true, timeout_ms = 1500 },
   tree = {
     width = 40, side = "left", show_hidden = false,
-    follow = true, max_entries = 5000,
+    follow = true, max_entries = 5000, icons = true,
   },
 })
 ```
@@ -127,7 +134,7 @@ require("file_tools").setup({
 `:checkhealth file_tools` checks dependencies. Run:
 
 ```sh
-bash tests/run.sh                         # core, tree, themes (real sibling checkout when available)
+bash tests/run.sh                         # core, tree, icons, themes
 stylua --check lua plugin tests/*.lua
 python3 tests/tui.py                      # real PTY tree interaction
 FILE_TOOLS_CONFIGURED=1 python3 tests/tui.py # current Neovim configuration
@@ -142,3 +149,5 @@ PTY and TypeScript tests are local acceptance checks.
 Theme integration tests use the actual sibling `theme-tools.nvim` checkout;
 set `FILE_TOOLS_THEME_TOOLS` to use another checkout. Without it, the basic suite
 still checks standalone highlighting and reports the integration tests skipped.
+Icon tests also use the installed `nvim-web-devicons` checkout when available;
+set `FILE_TOOLS_DEVICONS` to use another checkout.

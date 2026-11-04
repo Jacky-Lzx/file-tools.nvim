@@ -90,9 +90,16 @@ function M.refresh(state, focus_path)
   focus_path = focus_path or (old and old.path)
   local lines, nodes, highlights, directories = {}, {}, {}, {}
   local limit, truncated = options().max_entries, false
+  local devicons
+  if options().icons then
+    local ok, provider = pcall(require, "nvim-web-devicons")
+    if ok then
+      devicons = provider
+    end
+  end
   local function append(node, text, group)
     nodes[#nodes + 1], lines[#lines + 1] = node, text
-    highlights[#highlights + 1] = { #lines - 1, group }
+    highlights[#highlights + 1] = { #lines - 1, 0, #text, group }
   end
   append({ path = state.root, directory = true, depth = -1 }, label(state.root), "FileToolsRoot")
   local function walk(directory, depth)
@@ -142,11 +149,27 @@ function M.refresh(state, focus_path)
         break
       end
       local marker = child.directory and (state.expanded[child.path] and "▾ " or "▸ ") or "  "
+      local prefix = string.rep("  ", depth) .. marker
+      local icon, icon_group
+      if options().icons then
+        if child.directory then
+          icon = state.expanded[child.path] and "" or ""
+          icon_group = "FileToolsDirectory"
+        elseif devicons then
+          icon, icon_group = devicons.get_icon(child.name, nil, { default = true, strict = true })
+        end
+        icon = icon or ""
+        icon_group = icon_group or (child.link and "FileToolsSymlink" or "FileToolsFile")
+      end
+      child.name_col = #prefix + (icon and #icon + 1 or 0)
       append(
         child,
-        string.rep("  ", depth) .. marker .. label(child.name) .. (child.link and " →" or ""),
+        prefix .. (icon and icon .. " " or "") .. label(child.name) .. (child.link and " →" or ""),
         child.directory and "FileToolsDirectory" or child.link and "FileToolsSymlink" or "FileToolsFile"
       )
+      if icon then
+        highlights[#highlights + 1] = { #lines - 1, #prefix, #prefix + #icon, icon_group, 110 }
+      end
       if child.directory and state.expanded[child.path] then
         walk(child.path, depth + 1)
       end
@@ -162,7 +185,13 @@ function M.refresh(state, focus_path)
   vim.bo[state.buf].modifiable = false
   api.nvim_buf_clear_namespace(state.buf, ns, 0, -1)
   for _, item in ipairs(highlights) do
-    api.nvim_buf_set_extmark(state.buf, ns, item[1], 0, { end_col = #lines[item[1] + 1], hl_group = item[2] })
+    api.nvim_buf_set_extmark(
+      state.buf,
+      ns,
+      item[1],
+      item[2],
+      { end_col = item[3], hl_group = item[4], priority = item[5] or 100 }
+    )
   end
   local row = math.min(api.nvim_win_get_cursor(state.win)[1], #lines)
   for index, node in ipairs(nodes) do
@@ -172,7 +201,7 @@ function M.refresh(state, focus_path)
     end
   end
   local node = nodes[row]
-  local col = node.depth and node.depth >= 0 and (node.depth * 2 + 2) or 0
+  local col = node.name_col or 0
   api.nvim_win_set_cursor(state.win, { row, math.min(col, #lines[row]) })
   watch(state, directories)
 end

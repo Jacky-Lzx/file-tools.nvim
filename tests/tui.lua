@@ -53,6 +53,26 @@ local function snapshot()
     buffers[#buffers + 1] = { id = buf, name = api.nvim_buf_get_name(buf), modified = vim.bo[buf].modified }
   end
   local colors, palette, directory_attr
+  local file_icon
+  if tree then
+    for row, node in ipairs(tree.nodes) do
+      if node.name == "current.lua" then
+        local line = api.nvim_buf_get_lines(tree.buf, row - 1, row, false)[1]
+        local icon_pos = vim.fn.screenpos(tree.win, row, 3)
+        local name_pos = vim.fn.screenpos(tree.win, row, node.name_col + 1)
+        local provider = package.loaded["nvim-web-devicons"]
+        file_icon = {
+          expected = provider and provider.get_icon(node.name, nil, { default = true, strict = true })
+            or "",
+          text = line:sub(3, node.name_col - 1),
+          cell = vim.fn.screenstring(icon_pos.row, icon_pos.col),
+          icon_attr = vim.fn.screenattr(icon_pos.row, icon_pos.col),
+          name_attr = vim.fn.screenattr(name_pos.row, name_pos.col),
+          provider = provider ~= nil,
+        }
+      end
+    end
+  end
   if theme_test then
     colors = {}
     for _, name in ipairs({ "Root", "Directory", "Normal", "CursorLine", "WinSeparator" }) do
@@ -81,6 +101,7 @@ local function snapshot()
     colors = colors,
     palette = palette,
     directory_attr = directory_attr,
+    file_icon = file_icon,
     tree = tree and {
       focus = api.nvim_get_current_win() == tree.win,
       lines = api.nvim_buf_get_lines(tree.buf, 0, -1, false),

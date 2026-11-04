@@ -1,7 +1,7 @@
 local M = {}
 M.defaults = {
   lsp = { enabled = true, timeout_ms = 1500 },
-  tree = { width = 40, side = "left", show_hidden = false, follow = true, max_entries = 5000 },
+  tree = { width = 40, side = "left", show_hidden = false, follow = true, max_entries = 5000, icons = true },
 }
 M.options = vim.deepcopy(M.defaults)
 

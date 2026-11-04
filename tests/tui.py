@@ -22,6 +22,7 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
     (fixture / "src").mkdir()
     (fixture / "src/child.txt").write_text("child\n")
     (fixture / "current.txt").write_text("current\n")
+    (fixture / "current.lua").write_text("return {}\n")
     (fixture / ".hidden").write_text("hidden\n")
     master, slave = pty.openpty()
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 140, 0, 0))
@@ -68,7 +69,12 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
         assert (fixture / "ready").exists(), transcript.decode(errors="replace")[-3000:]
         send(" e" if integrated else "\x1b[17~")  # Configured leader-e or isolated F6
         opened = snapshot(lambda v: v.get("tree", {}).get("focus"), "Tree did not open")
-        assert "▸ src" in opened["screen"] and "current.txt" in opened["screen"]
+        assert "▸  src" in opened["screen"] and "current.txt" in opened["screen"]
+        icon = opened["file_icon"]
+        assert icon["text"] == icon["expected"] == icon["cell"], "File icon did not reach rendered cells"
+        if integrated:
+            assert icon["provider"], "Configured devicons did not load on first tree use"
+            assert icon["icon_attr"] != icon["name_attr"], "File icon lost its own color"
         assert ".hidden" not in "\n".join(opened["tree"]["lines"])
         assert opened["tree"]["watchers"] > 0
         if theme_test:
@@ -83,12 +89,15 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
                 assert colors["WinSeparator"]["fg"] == int(palette["ui"]["border"][1:], 16)
                 assert frame["tree"]["cursor"] == opened["tree"]["cursor"]
                 assert frame["tree"]["buf"] == opened["tree"]["buf"]
-                assert "▸ src" in frame["screen"]
+                assert "▸  src" in frame["screen"]
+                assert frame["file_icon"]["cell"] == frame["file_icon"]["expected"]
+                if integrated:
+                    assert frame["file_icon"]["icon_attr"] != frame["file_icon"]["name_attr"]
                 frames.append(frame)
             assert frames[0]["directory_attr"] != frames[1]["directory_attr"], "Visible directory cells did not change color"
             assert frames[-1]["palette"]["ui"]["bg"] == "NONE"
             assert frames[-1]["colors"]["Normal"].get("bg") is None
-        send("/▸ src\rl")  # Expand src using actual l mapping
+        send("/src\rl")  # Expand src using actual l mapping
         expanded = snapshot(lambda v: "child.txt" in "\n".join(v["tree"]["lines"]), "Directory did not expand")
         send("j\r")  # Open child in editor
         snapshot(lambda v: v["current"].endswith("/src/child.txt") and v["origin"], "Tree opened in wrong window")
