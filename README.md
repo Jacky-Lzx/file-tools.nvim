@@ -56,6 +56,9 @@ Only expanded directories are scanned. Visible directories are watched (up to
 Directory symlinks are displayed without recursive traversal. Files open in the
 editing window, and following the current file does not steal focus.
 
+When ui-tools manages window bars, the tree declares a centered `Files` title
+and a minimal `file-tools` footer through buffer-local bar profiles.
+
 File and folder icons are enabled by default and require a Nerd Font in your
 terminal. When available, `nvim-web-devicons` supplies filename/extension icons
 and their colors; otherwise files use a generic icon. Folder icons reflect their

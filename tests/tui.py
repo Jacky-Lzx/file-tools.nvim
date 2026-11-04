@@ -61,6 +61,11 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
                     if value.get("tree"):
                         assert value["tree"]["textoff"] == 0, "Tree inherited an empty gutter: " + json.dumps(value["tree"])
                         assert value["tree"]["statuscolumn"] == "", "Tree kept a custom status column"
+                        if integrated:
+                            top, bottom = value["tree_bars"]["top"], value["tree_bars"]["bottom"]
+                            assert top.strip() == "Files", "Missing tree title: " + top
+                            assert abs(len(top) - len(top.lstrip()) - (len(top) - len(top.rstrip()))) <= 1, top
+                            assert bottom.strip() == "file-tools", "Unexpected tree footer: " + bottom
                     return value
         raise AssertionError(label + "\n" + json.dumps(value, ensure_ascii=False) + "\n" + transcript.decode(errors="replace")[-2500:])
 

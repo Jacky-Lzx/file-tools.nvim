@@ -488,6 +488,8 @@ function M.open(opts)
   states[tab] = state
   state.buf = api.nvim_create_buf(false, true)
   api.nvim_buf_set_name(state.buf, "file-tools://tree/" .. tab)
+  vim.b[state.buf].ui_tools_winbar = { text = "Files", align = "center" }
+  vim.b[state.buf].ui_tools_statusline = "file-tools"
   vim.bo[state.buf].bufhidden = "wipe"
   vim.bo[state.buf].filetype = "file-tools"
   vim.bo[state.buf].swapfile = false

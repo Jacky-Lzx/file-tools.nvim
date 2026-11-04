@@ -54,7 +54,20 @@ local function snapshot()
   end
   local colors, palette, directory_attr
   local file_icon
+  local tree_bars
   if tree then
+    local pos = api.nvim_win_get_position(tree.win)
+    local function bar_row(row)
+      local cells = {}
+      for col = pos[2] + 1, pos[2] + api.nvim_win_get_width(tree.win) do
+        cells[#cells + 1] = vim.fn.screenstring(row, col)
+      end
+      return table.concat(cells)
+    end
+    tree_bars = {
+      top = bar_row(pos[1] + 1),
+      bottom = bar_row(pos[1] + api.nvim_win_get_height(tree.win) + 1),
+    }
     for row, node in ipairs(tree.nodes) do
       if node.name == "current.lua" then
         local line = api.nvim_buf_get_lines(tree.buf, row - 1, row, false)[1]
@@ -102,6 +115,7 @@ local function snapshot()
     palette = palette,
     directory_attr = directory_attr,
     file_icon = file_icon,
+    tree_bars = tree_bars,
     tree = tree and {
       focus = api.nvim_get_current_win() == tree.win,
       lines = api.nvim_buf_get_lines(tree.buf, 0, -1, false),
