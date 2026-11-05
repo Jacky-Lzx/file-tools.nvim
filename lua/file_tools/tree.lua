@@ -508,8 +508,11 @@ function M.open(opts)
   vim.bo[state.buf].filetype = "file-tools"
   vim.bo[state.buf].swapfile = false
   vim.bo[state.buf].undolevels = -1
-  state.win =
-    api.nvim_open_win(state.buf, true, { split = options().side, win = -1, width = options().width })
+  state.win = api.nvim_open_win(
+    state.buf,
+    opts.focus ~= false,
+    { split = options().side, win = -1, width = options().width }
+  )
   for name, value in pairs({
     number = false,
     relativenumber = false,
@@ -541,9 +544,6 @@ function M.open(opts)
     reveal(state, path.absolute(opts.reveal))
   end
   M.refresh(state)
-  if opts.focus == false and api.nvim_win_is_valid(current) then
-    api.nvim_set_current_win(current)
-  end
   return state
 end
 
@@ -572,6 +572,15 @@ function M.toggle(opts)
   if valid(states[api.nvim_get_current_tabpage()]) then
     M.close()
   else
+    opts = vim.tbl_extend("force", { focus = false }, opts or {})
+    if
+      options().follow
+      and opts.reveal == nil
+      and vim.bo.buftype == ""
+      and api.nvim_buf_get_name(0) ~= ""
+    then
+      return M.find(opts)
+    end
     return M.open(opts)
   end
 end

@@ -23,6 +23,61 @@ local function select(state, name)
   error("missing node " .. name)
 end
 
+h.test("toggle preserves editor focus and cursor without entering the tree", function()
+  local origin = api.nvim_get_current_win()
+  api.nvim_buf_set_lines(0, 0, -1, false, { "first line", "second line", "third line" })
+  api.nvim_win_set_cursor(origin, { 2, 4 })
+  local entered = {}
+  local autocmd = api.nvim_create_autocmd({ "WinEnter", "BufEnter" }, {
+    callback = function()
+      entered[#entered + 1] = api.nvim_get_current_win()
+    end,
+  })
+  local state = tree.toggle({ root = h.root })
+  h.eq(origin, api.nvim_get_current_win())
+  h.eq({ 2, 4 }, api.nvim_win_get_cursor(origin))
+  h.eq({}, entered)
+  h.eq(origin, state.target_win)
+  assert(api.nvim_win_is_valid(state.win))
+  tree.toggle()
+  h.eq(nil, tree.state())
+  h.eq(origin, api.nvim_get_current_win())
+  h.eq({ 2, 4 }, api.nvim_win_get_cursor(origin))
+  api.nvim_del_autocmd(autocmd)
+
+  state = tree.toggle({ root = h.root, focus = true })
+  h.eq(state.win, api.nvim_get_current_win())
+  tree.close()
+  vim.bo.modified = false
+end)
+
+h.test("toggle reveals the current file while preserving editor focus", function()
+  local origin = api.nvim_get_current_win()
+  vim.cmd.edit(h.root .. "/src/child.lua")
+  api.nvim_win_set_cursor(origin, { 1, 3 })
+  for _ = 1, 2 do
+    local state = tree.toggle({ root = h.root })
+    h.eq(h.root .. "/src/child.lua", state.nodes[api.nvim_win_get_cursor(state.win)[1]].path)
+    h.eq(true, state.expanded[h.root .. "/src"])
+    h.eq(origin, api.nvim_get_current_win())
+    h.eq({ 1, 3 }, api.nvim_win_get_cursor(origin))
+    tree.toggle()
+  end
+
+  vim.cmd.edit(h.root .. "/a.txt")
+  local state = tree.toggle({ root = h.root .. "/src" })
+  h.eq(h.root, state.root)
+  h.eq(h.root .. "/a.txt", state.nodes[api.nvim_win_get_cursor(state.win)[1]].path)
+  h.eq(origin, api.nvim_get_current_win())
+  tree.close()
+
+  require("file_tools").setup({ tree = { follow = false } })
+  state = tree.toggle({ root = h.root })
+  h.eq(h.root, state.nodes[api.nvim_win_get_cursor(state.win)[1]].path)
+  tree.close()
+  require("file_tools").setup({})
+end)
+
 h.test("tree clears inherited gutters without changing the editor", function()
   local origin = api.nvim_get_current_win()
   local inherited = {

@@ -18,6 +18,11 @@ The argument after the action is one literal path, including spaces. Do not add
 shell quotes. Commands report errors through vim.notify. Lua operations return
 an event or nil, error. Use the tree's d mapping for confirmed deletion.
 
+Toggle keeps focus and cursor position in the current window when opening the
+tree. With tree.follow enabled (the default), opening also expands and selects
+the current file, using its parent as root if outside the tree root. Open and
+find focus the tree. Use <C-w>h to enter a tree on the left.
+
 TREE                                                     *file-tools-tree*
 
     <CR>, l, double-click   Open a file or toggle a directory.
@@ -62,6 +67,9 @@ LUA API                                                   *file-tools-api*
     files.copy("/project/assets", "/project/assets-copy")
     files.delete("/project/assets-copy", { recursive = true })
 <
+toggle() opens without taking focus unless focus=true is passed. open() and
+find() focus the tree unless focus=false is passed.
+
 setup() is optional. It registers the command and configures defaults; UI modules
 load only when used. No global key mappings are installed. Paths are normalized
 to absolute paths, resolving parent symlinks while preserving leaf symlinks.

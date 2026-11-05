@@ -30,8 +30,11 @@ Example lazy.nvim spec (add it yourself when ready):
 }
 ```
 
-`:FileTools` toggles the tree. `open [directory]`, `close`, `find` and `refresh`
-manage it.
+`:FileTools` toggles the tree while keeping focus and cursor position in the
+current window. With `tree.follow` enabled (the default), opening also expands
+and selects the current file, using its parent as root if outside the tree root.
+`open [directory]` and `find` focus the tree; `close` and `refresh`
+manage it. Use `<C-w>h` to enter a tree on the left.
 `:FileTools create path` creates a file (trailing `/` creates a directory), and
 `:FileTools rename destination` moves the current file. Arguments are literal
 paths with spaces supported; no shell quotes are needed.
@@ -85,6 +88,9 @@ files.rename("/project/new.lua", "/project/main.lua")
 files.copy("/project/assets", "/project/assets-copy")
 files.delete("/project/assets-copy", { recursive = true })
 ```
+
+`files.toggle()` opens without taking focus; pass `focus = true` to enter it.
+`files.open()` and `files.find()` focus the tree unless `focus = false` is passed.
 
 Create, rename, copy and delete return an event or `nil, error`. Parents must already
 exist, destinations must be absent, and deleting a dirty buffer is refused.

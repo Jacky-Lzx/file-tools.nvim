@@ -84,8 +84,12 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
             startup = snapshot(lambda v: bool(v.get("dashboard")), "Startup dashboard did not open")
             assert len(startup["windows"]) == 1
             send(" e")
-            opened = snapshot(lambda v: v.get("tree", {}).get("focus"), "Files did not open alongside dashboard")
+            opened = snapshot(lambda v: bool(v.get("tree")), "Files did not open alongside dashboard")
+            assert opened["origin"] and not opened["tree"]["focus"], "Toggle stole dashboard focus"
+            # The dashboard recenters its content on WinResized; keep its selected action.
+            assert opened["dashboard"]["selected"] == startup["dashboard"]["selected"], "Toggle changed dashboard selection"
             assert len(opened["windows"]) == 2 and opened.get("dashboard")
+            send("\x17h")  # Enter Files explicitly for picker/tree interaction
             if dashboard_test == "picker":
                 send(" sf")
                 snapshot(lambda v: v.get("picker", {}).get("ready"), "File picker did not open")
@@ -108,8 +112,24 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
             assert startup["dashboard"]["source"] not in [b["id"] for b in chosen["buffers"]]
             print("PTY (configured dashboard): Files + " + dashboard_test + " reuses dashboard window, restores bars and removes startup placeholders")
             sys.exit(0)
-        send(" e" if integrated else "\x1b[17~")  # Configured leader-e or isolated F6
-        opened = snapshot(lambda v: v.get("tree", {}).get("focus"), "Tree did not open")
+        send("0lll")
+        before = snapshot(lambda v: v["origin"], "Editor did not receive cursor movement")
+        toggle = " e" if integrated else "\x1b[17~"  # Configured leader-e or isolated F6
+        send(toggle)
+        opened = snapshot(lambda v: bool(v.get("tree")), "Tree did not open")
+        assert opened["origin"] and not opened["tree"]["focus"], "Toggle stole editor focus"
+        assert opened["origin_cursor"] == before["origin_cursor"], "Toggle moved editor cursor"
+        assert opened["tree"]["selected"] == before["current"], "Toggle did not reveal current file"
+        send(toggle)
+        closed = snapshot(lambda v: not v.get("tree"), "Toggle did not close tree from editor")
+        assert closed["origin"] and closed["origin_cursor"] == before["origin_cursor"]
+        send(toggle)
+        reopened = snapshot(lambda v: bool(v.get("tree")), "Toggle did not reopen tree")
+        assert reopened["origin"] and not reopened["tree"]["focus"], "Reopening stole editor focus"
+        assert reopened["origin_cursor"] == before["origin_cursor"], "Reopening moved editor cursor"
+        assert reopened["tree"]["selected"] == before["current"], "Reopening did not reveal current file"
+        send("\x17h")  # Enter Files explicitly for tree interaction
+        opened = snapshot(lambda v: v.get("tree", {}).get("focus"), "Could not enter Files")
         assert "▸  src" in opened["screen"] and "current.txt" in opened["screen"]
         icon = opened["file_icon"]
         assert icon["text"] == icon["expected"] == icon["cell"], "File icon did not reach rendered cells"
@@ -154,7 +174,13 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
         send("/src\rl")  # Expand src using actual l mapping
         expanded = snapshot(lambda v: "child.txt" in "\n".join(v["tree"]["lines"]), "Directory did not expand")
         send("j\r")  # Open child in editor
-        snapshot(lambda v: v["current"].endswith("/src/child.txt") and v["origin"], "Tree opened in wrong window")
+        child_frame = snapshot(lambda v: v["current"].endswith("/src/child.txt") and v["origin"], "Tree opened in wrong window")
+        send(toggle)
+        snapshot(lambda v: not v.get("tree"), "Toggle did not close tree for nested file")
+        send(toggle)
+        nested = snapshot(lambda v: bool(v.get("tree")), "Toggle did not reopen tree for nested file")
+        assert nested["origin"] and nested["origin_cursor"] == child_frame["origin_cursor"]
+        assert nested["tree"]["selected"] == child_frame["current"], "Toggle did not expand and reveal nested current file"
         send("\x17h")  # Ctrl-w h: back to tree
         send("a")
         drain(0.2)

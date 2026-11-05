@@ -121,6 +121,7 @@ local function snapshot()
     mode = api.nvim_get_mode().mode,
     current = api.nvim_buf_get_name(0),
     origin = api.nvim_get_current_win() == origin,
+    origin_cursor = api.nvim_win_get_cursor(origin),
     screen = table.concat(screen, "\n"),
     buffers = buffers,
     cwd = vim.fn.getcwd(),
@@ -129,7 +130,12 @@ local function snapshot()
     directory_attr = directory_attr,
     file_icon = file_icon,
     tree_bars = tree_bars,
-    dashboard = dashboard and { win = dashboard.win, buf = dashboard.buf, source = dashboard.source } or nil,
+    dashboard = dashboard and {
+      win = dashboard.win,
+      buf = dashboard.buf,
+      source = dashboard.source,
+      selected = dashboard.items[dashboard.selected].key,
+    } or nil,
     laststatus = vim.o.laststatus,
     windows = vim.tbl_filter(function(win)
       return api.nvim_win_get_config(win).relative == ""
