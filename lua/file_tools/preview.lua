@@ -175,6 +175,7 @@ function M.update(state, node, force)
         win = preview.win,
         page = 1,
         render_scale = extension:lower() == "pdf" and 2 or nil,
+        fit_pixels = extension:lower() == "pdf" or nil,
         is_valid = current,
         paint = paint,
         on_error = function(message)

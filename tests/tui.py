@@ -38,7 +38,16 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
     (fixture / ".hidden").write_text("hidden\n")
     if image_test:
         shutil.copyfile(image_root / "tests/fixtures/fixture.png", fixture / "preview image.PNG")
-        shutil.copyfile(image_root / "tests/fixtures/fixture.pdf", fixture / "preview pages.pdf")
+        pdf_fixture = Path(os.environ.get("FILE_TOOLS_PDF_FIXTURE", image_root / "tests/fixtures/fixture.pdf"))
+        shutil.copyfile(pdf_fixture, fixture / "preview pages.pdf")
+        metadata = subprocess.run(["pdfinfo", "-f", "1", "-l", "1", str(pdf_fixture)],
+                                  capture_output=True, text=True, check=True, env=dict(os.environ, LC_ALL="C")).stdout
+        page_size = re.search(r"(?:Page +1 +size|Page size):\s+([\d.]+) x ([\d.]+) pts", metadata)
+        assert page_size, metadata
+        page_width, page_height = map(float, page_size.groups())
+        rotation = re.search(r"(?:Page +1 +rot|Page rot):\s+(-?\d+)", metadata)
+        if rotation and int(rotation[1]) % 180:
+            page_width, page_height = page_height, page_width
     master, slave = pty.openpty()
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 140, 0, 0))
     env = dict(os.environ, TERM="xterm-256color", FILE_TOOLS_ROOT=str(root),
@@ -268,8 +277,13 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
                     assert struct.unpack(">II", uploads[-1][16:24]) == (160, 100), "Native PNG pixels changed"
                 assert frame["preview"]["win"] == media_win, "Navigation replaced the preview window"
                 if name == "preview pages":
-                    assert struct.unpack(">II", uploads[-1][16:24]) == (640, 400), "PDF did not render at 288 DPI"
-                    assert frame["preview"]["placement_size"] == image_size, "PDF detail enlarged the displayed preview"
+                    target = frame["preview"]["raster_size"]
+                    pixel_width, pixel_height = struct.unpack(">II", uploads[-1][16:24])
+                    scale = min(target["width"] / page_width, target["height"] / page_height)
+                    assert abs(pixel_width - page_width * scale) <= 2 and abs(pixel_height - page_height * scale) <= 2, (
+                        "PDF raster does not fill its viewport pixel target", pixel_width, pixel_height, target)
+                    if not os.environ.get("FILE_TOOLS_PDF_FIXTURE"):
+                        assert frame["preview"]["placement_size"] == image_size, "PDF detail enlarged the displayed preview"
                     before = len(uploads)
                     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 100, 1000, 600))
                     os.kill(child.pid, signal.SIGWINCH)
@@ -278,10 +292,18 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
                                        "PDF preview did not adapt to resize")
                     assert len(uploads) == before, "Resize uploaded duplicate pixels"
                     assert resized["tree"]["focus"]
+                    assert resized["preview"]["raster_size"] == target, "Shrinking discarded reusable PDF detail"
+                    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 60, 180, 1800, 1200))
+                    os.kill(child.pid, signal.SIGWINCH)
+                    larger = snapshot(lambda v: v.get("preview", {}).get("stage") == "ready"
+                                      and v["preview"].get("raster_size", {}).get("width", 0) > target["width"],
+                                      "Growing the PDF preview did not upgrade raster detail")
+                    assert len(uploads) == before + 1, "Growing PDF did not upload upgraded pixels"
+                    assert larger["tree"]["focus"]
             send("P")
             snapshot(lambda v: not v.get("preview"), "Media preview leaked after P")
             assert not active_placements, "Closing preview left visible image placements"
-            assert len(uploads) == 2 and len(placements) >= 3, "Missing image/PDF uploads or resize placement"
+            assert len(uploads) == 3 and len(placements) >= 4, "Missing image/PDF uploads or resize placement"
             fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 140, 1400, 800))
             os.kill(child.pid, signal.SIGWINCH)
         send("/current.lua\r\t\x17l")

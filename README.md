@@ -90,9 +90,12 @@ embedded API, loaded only for media previews. Add it to your plugin manager
 terminal and `termguicolors`; conversion uses image-tools' configured tools
 (ImageMagick, with Ghostscript for PDF). Missing dependencies and rendering
 errors appear inside the preview. Source files and editor buffers stay untouched.
-PDF previews request 2× raster detail: with image-tools' defaults, 288 DPI and
-a 3840×2160 output box (aspect ratio preserved). This increases sharpness while
-keeping the fitted preview size; image-tools' pixel/dimension limits still apply.
+PDF previews rasterize vectors to the float's pixel size with 2× sampling,
+using measured terminal cell pixels or image-tools' `cell_size` fallback. Small
+cropped PDFs therefore gain detail before display instead of being enlarged
+from a fixed-DPI image. Targets use 64-pixel buckets and obey image-tools' pixel
+and dimension limits. Shrinking reuses pixels; growing upgrades them as needed.
+Adaptive PDF previews also require `pdfinfo` (Poppler) for page dimensions.
 
 File and folder icons are enabled by default and require a Nerd Font in your
 terminal. When available, `nvim-web-devicons` supplies filename/extension icons
@@ -204,3 +207,5 @@ Media PTY checks require the sibling `image-tools.nvim` checkout and its
 conversion tools; set `FILE_TOOLS_IMAGE_TOOLS` to use another checkout. They
 verify uploads, placements, resize reuse and cleanup through a deterministic
 Kitty protocol responder, rather than physical terminal pixels.
+Set `FILE_TOOLS_PDF_FIXTURE` to a local PDF to check the same pixel-target and
+resize behavior with that document.

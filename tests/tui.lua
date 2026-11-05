@@ -202,6 +202,7 @@ local function snapshot()
       stage = tree.preview.view and tree.preview.view.session and tree.preview.view.session.stage,
       grid = tree.preview.view and tree.preview.view.grid ~= nil,
       placement_size = tree.preview.view and { tree.preview.view.width, tree.preview.view.height },
+      raster_size = tree.preview.view and tree.preview.view.raster_size,
     } or nil,
     tree = tree and {
       focus = api.nvim_get_current_win() == tree.win,

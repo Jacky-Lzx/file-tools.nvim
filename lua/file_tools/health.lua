@@ -8,7 +8,7 @@ function M.check()
   end
   vim.health.ok("No mandatory external dependencies")
   vim.health.info(
-    "Tab image/PDF previews use optional image-tools.nvim with a Kitty graphics compatible terminal and termguicolors; PDF conversion needs ImageMagick with Ghostscript"
+    "Tab image/PDF previews use optional image-tools.nvim with a Kitty graphics compatible terminal and termguicolors; PDF conversion needs ImageMagick with Ghostscript and pdfinfo (Poppler)"
   )
   local themes = package.loaded.theme_tools
   if type(themes) == "table" and type(themes.on_change) == "function" then
