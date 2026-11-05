@@ -7,6 +7,7 @@ h.write(h.root .. "/a.txt", { "first preview" })
 h.write(h.root .. "/b.txt", { "second preview" })
 h.write(h.root .. "/中文 image.PNG")
 h.write(h.root .. "/pages.pdf")
+h.write(h.root .. "/folder/child.txt")
 local binary = assert(vim.uv.fs_open(h.root .. "/binary.bin", "w", 420))
 assert(vim.uv.fs_write(binary, "a\0b", 0))
 vim.uv.fs_close(binary)
@@ -82,6 +83,56 @@ h.test("Tab opens once, repeated Tab stays open and changing selection closes it
   key("<Esc>")
   h.eq(nil, state.preview)
   tree.close()
+end)
+
+h.test("Tab and P never create a preview for folders or the root row", function()
+  local state = tree.open({ root = h.root })
+  local created = 0
+  local autocmd = api.nvim_create_autocmd("WinNew", {
+    callback = function()
+      created = created + 1
+    end,
+  })
+  for _, root in ipairs({ false, true }) do
+    if root then
+      api.nvim_win_set_cursor(state.win, { 1, 0 })
+      api.nvim_exec_autocmds("CursorMoved", { buffer = state.buf })
+    else
+      select(state, "folder")
+    end
+    key("<Tab>")
+    key("P")
+    h.eq(nil, state.preview)
+    h.eq(state.win, api.nvim_get_current_win())
+  end
+  h.eq(0, created)
+  api.nvim_del_autocmd(autocmd)
+  tree.close()
+end)
+
+h.test("selecting a folder closes following previews and cancels pending work", function()
+  for _, settled in ipairs({ false, true }) do
+    local state = open("a.txt")
+    local float = state.preview
+    if settled then
+      wait_for(function()
+        return lines(state)[1] == "first preview"
+      end)
+    end
+    select(state, "folder")
+    h.eq(nil, state.preview)
+    assert(not api.nvim_win_is_valid(float.win) and not api.nvim_buf_is_valid(float.buf))
+    vim.wait(80, function()
+      return false
+    end)
+    h.eq(nil, state.preview)
+    select(state, "b.txt")
+    key("<Tab>")
+    wait_for(function()
+      return lines(state)[1] == "second preview"
+    end)
+    tree.close()
+  end
 end)
 
 h.test("P enables following from a single preview and Tab returns to single preview", function()
@@ -195,7 +246,8 @@ h.test("image and PDF rendering is lazy, guarded and released on replacement", f
   local before = lines(state)
   requests[1].on_error("late failure")
   h.eq(before, lines(state))
-  key("<Esc>")
+  select(state, "folder")
+  h.eq(nil, state.preview)
   assert(views[2].closed and not requests[2].is_valid())
   tree.close()
   package.preload.image_tools, package.loaded.image_tools = nil, nil

@@ -74,6 +74,10 @@ function M.update(state, node, force)
   if not preview or not node then
     return
   end
+  if node.directory then
+    M.close(state)
+    return
+  end
   if preview.generation > 0 and not preview.follow and preview.path ~= node.path and not force then
     M.close(state)
     return
@@ -143,9 +147,6 @@ function M.update(state, node, force)
   })
   if node.error or not node.path then
     write({ "No preview available" })
-    return
-  elseif node.directory then
-    write({ "Directory: " .. vim.fn.strtrans(node.path) })
     return
   end
   write({ "Loading preview…" })
@@ -239,6 +240,10 @@ function M.update(state, node, force)
 end
 
 function M.open(state, node, follow)
+  if node and node.directory then
+    M.close(state)
+    return
+  end
   if state.preview then
     state.preview.follow = follow == true
     M.update(state, node, state.preview.path ~= (node and node.path))

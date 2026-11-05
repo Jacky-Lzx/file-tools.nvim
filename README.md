@@ -75,10 +75,11 @@ Tab opens a single floating preview beside Files without moving focus. Pressing
 Tab again keeps it open; moving to another file closes it. `P` toggles following
 preview, which updates as the selection moves. Pressing `P` on a single preview
 enables following; Tab returns it to single preview. Esc, leaving Files or
-closing the tree releases either preview.
+closing the tree releases either preview. Selecting a directory closes any open
+preview; Tab and `P` do nothing on directories, including the root row.
 The float adapts to terminal resizing. Text previews read at most 256 KiB,
 show up to 500 lines and limit each line to 2000 bytes. Other binary files show
-a placeholder, and directories show their path.
+a placeholder.
 Text highlighting uses the installed Tree-sitter parser and runtime highlight
 queries, with Vim syntax as a fallback. The preview sets its filetype without
 running FileType handlers or attaching language servers; LSP semantic tokens

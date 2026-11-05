@@ -58,10 +58,12 @@ Repeated <Tab> keeps it open; moving to another file closes this single preview.
 P toggles following preview, which updates as the selection moves. P on a single
 preview enables following; <Tab> returns to single preview. <Esc>, leaving Files
 (including opening a file) or closing the tree releases the window and renderer.
+Selecting a directory closes any open preview. <Tab> and P do nothing on
+directories, including the root row.
 Terminal resizing adjusts the float and reuses uploaded image pixels.
 
 Text previews read at most 256 KiB, display up to 500 lines and truncate lines
-to 2000 bytes. Directories show their path; other binary files show a placeholder.
+to 2000 bytes. Other binary files show a placeholder.
 Previews use the file on disk and do not modify files or editor buffers.
 Text highlighting uses installed Tree-sitter parsers and runtime queries,
 falling back to Vim syntax when unavailable. The preview sets 'filetype' without

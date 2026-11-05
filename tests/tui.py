@@ -241,6 +241,9 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
             chosen = snapshot(lambda v: not v.get("picker") and v["origin"] and v["current"] == str(fixture / "current.lua"), "File picker replaced Files instead of the editor")
             assert chosen["tree"]["buf"] == opened["tree"]["buf"], "File picker destroyed the Files buffer"
             send("\x17h")
+        send("/src\r\tP")
+        snapshot(lambda v: not v.get("preview") and v["tree"]["focus"],
+                 "Tab or P opened a directory preview")
         send("/current.txt\r\t")
         previewed = snapshot(lambda v: v.get("preview", {}).get("lines", [None])[0] == "current",
                              "Tab did not show text preview")
@@ -258,6 +261,12 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
         send("/current.txt\r")
         snapshot(lambda v: v.get("preview", {}).get("lines", [None])[0] == "current",
                  "Following preview did not update selection")
+        send("/src\r")
+        snapshot(lambda v: not v.get("preview") and v["tree"]["focus"],
+                 "Selecting a directory left the following preview open")
+        send("/current.txt\rP")
+        snapshot(lambda v: v.get("preview", {}).get("lines", [None])[0] == "current",
+                 "File preview did not reopen after selecting a directory")
         send("P")
         snapshot(lambda v: not v.get("preview") and v["tree"]["focus"], "P did not hide preview")
         send("\t\x1b")
