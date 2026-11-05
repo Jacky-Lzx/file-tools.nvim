@@ -86,6 +86,9 @@ embedded API, loaded only for media previews. Add it to your plugin manager
 terminal and `termguicolors`; conversion uses image-tools' configured tools
 (ImageMagick, with Ghostscript for PDF). Missing dependencies and rendering
 errors appear inside the preview. Source files and editor buffers stay untouched.
+PDF previews request 2× raster detail: with image-tools' defaults, 288 DPI and
+a 3840×2160 output box (aspect ratio preserved). This increases sharpness while
+keeping the fitted preview size; image-tools' pixel/dimension limits still apply.
 
 File and folder icons are enabled by default and require a Nerd Font in your
 terminal. When available, `nvim-web-devicons` supplies filename/extension icons

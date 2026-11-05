@@ -151,6 +151,7 @@ function M.update(state, node, force)
         buf = preview.buf,
         win = preview.win,
         page = 1,
+        render_scale = extension:lower() == "pdf" and 2 or nil,
         is_valid = current,
         paint = paint,
         on_error = function(message)

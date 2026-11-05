@@ -251,6 +251,7 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
         snapshot(lambda v: not v.get("preview") and v["tree"]["focus"], "Escape did not close preview")
         if image_test:
             media_win = None
+            image_size = None
             for name in ("preview image", "preview pages"):
                 send("/" + name + "\r" + ("P" if media_win is None else ""))
                 frame = snapshot(lambda v: v.get("preview", {}).get("stage") == "ready"
@@ -259,8 +260,12 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
                 assert "Preview:" not in "\n".join(frame["preview"]["lines"])
                 if media_win is None:
                     media_win = frame["preview"]["win"]
+                    image_size = frame["preview"]["placement_size"]
+                    assert struct.unpack(">II", uploads[-1][16:24]) == (160, 100), "Native PNG pixels changed"
                 assert frame["preview"]["win"] == media_win, "Navigation replaced the preview window"
                 if name == "preview pages":
+                    assert struct.unpack(">II", uploads[-1][16:24]) == (640, 400), "PDF did not render at 288 DPI"
+                    assert frame["preview"]["placement_size"] == image_size, "PDF detail enlarged the displayed preview"
                     before = len(uploads)
                     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 100, 1000, 600))
                     os.kill(child.pid, signal.SIGWINCH)

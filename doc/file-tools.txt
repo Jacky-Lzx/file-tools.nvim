@@ -69,6 +69,9 @@ Configure it in your plugin manager; lazy loading is supported. Rendering needs
 a Kitty graphics compatible terminal with 'termguicolors'. Image conversion uses
 image-tools' configured tools: ImageMagick, with Ghostscript for PDFs. Errors or
 missing dependencies appear in the preview instead of opening binary data.
+PDF requests use render_scale=2: default 288 DPI and a 3840x2160 output box,
+preserving aspect ratio and fitted preview size. Image-tools' pixel/dimension
+limits still apply; the optional image-tools version must support render_scale.
 Rapid selection changes discard pending work and reject stale draws/errors.
 
 File/folder icons are enabled by default; use a Nerd Font in your terminal.

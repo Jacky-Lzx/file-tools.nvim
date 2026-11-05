@@ -166,6 +166,7 @@ h.test("image and PDF rendering is lazy, guarded and released on replacement", f
   h.eq(1, loads)
   h.eq(state.preview.win, requests[1].win)
   h.eq(state.preview.buf, requests[1].buf)
+  h.eq(nil, requests[1].render_scale)
   tree.refresh(state)
   vim.wait(80, function()
     return false
@@ -185,6 +186,7 @@ h.test("image and PDF rendering is lazy, guarded and released on replacement", f
     return #requests == 2
   end)
   h.eq(1, requests[2].page)
+  h.eq(2, requests[2].render_scale)
   assert(requests[2].path:match("pages.pdf$"))
   api.nvim_exec_autocmds("VimResized", {})
   h.eq(1, views[2].resized)
