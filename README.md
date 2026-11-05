@@ -152,6 +152,9 @@ The dependency declaration above loads the theme service before the tree. If
 never initializes the theme manager or selects a colorscheme itself. Without the
 service, its highlight groups link to standard Neovim groups.
 
+Public highlight definitions from your colorscheme or user overrides take precedence
+over shared palette updates. Private default targets are refreshed on theme changes.
+
 ## Configuration and checks
 
 ```lua

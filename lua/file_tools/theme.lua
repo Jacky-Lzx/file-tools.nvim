@@ -2,6 +2,21 @@ local api = vim.api
 local M = {}
 local initialized, stop = false, nil
 
+-- Public groups are theme/user-owned; refresh only our private defaults.
+function M.define(name, value, fallback)
+  local api = vim.api
+  local target = "FileToolsDefault" .. name:sub(#"FileTools" + 1)
+  local function empty(group)
+    return vim.tbl_isempty(api.nvim_get_hl(0, { name = group, link = true, create = false }))
+  end
+  if not fallback or empty(target) then
+    local definition = vim.deepcopy(value)
+    definition.default = nil
+    api.nvim_set_hl(0, target, definition)
+  end
+  api.nvim_set_hl(0, name, { link = target, default = not empty(name) })
+end
+
 local function fallback()
   for name, link in pairs({
     Root = "Title",
@@ -14,7 +29,7 @@ local function fallback()
     Error = "DiagnosticError",
     Warn = "DiagnosticWarn",
   }) do
-    api.nvim_set_hl(0, "FileTools" .. name, { default = true, link = link })
+    M.define("FileTools" .. name, { link = link })
   end
 end
 
@@ -31,7 +46,7 @@ local function apply(c)
     Warn = { fg = c.diagnostic.warn },
   }
   for name, value in pairs(groups) do
-    api.nvim_set_hl(0, "FileTools" .. name, value)
+    M.define("FileTools" .. name, value)
   end
 end
 

@@ -54,10 +54,10 @@ state = tree.open({ root = h.root })
 if not early then
   h.test("standalone tree never loads theme-tools and follows standard highlights", function()
     assert(package.loaded.theme_tools == nil)
-    h.eq("Directory", api.nvim_get_hl(0, { name = "FileToolsDirectory" }).link)
+    h.eq(hl("Directory"), hl("FileToolsDirectory"))
     assert(vim.wo[state.win].winhighlight:find("Normal:FileToolsNormal", 1, true))
     vim.cmd.colorscheme("habamax")
-    h.eq("Directory", api.nvim_get_hl(0, { name = "FileToolsDirectory" }).link)
+    h.eq(hl("Directory"), hl("FileToolsDirectory"))
     assert(package.loaded.theme_tools == nil)
   end)
   if available then
