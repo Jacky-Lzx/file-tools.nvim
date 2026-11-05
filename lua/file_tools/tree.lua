@@ -91,8 +91,11 @@ function M.refresh(state, focus_path)
   focus_path = focus_path or (old and old.path)
   local lines, nodes, highlights, directories = {}, {}, {}, {}
   local limit, truncated = options().max_entries, false
+  local shared = options().icons and package.loaded["theme_tools.icons"]
+  shared = type(shared) == "table" and type(shared.get) == "function" and shared or nil
+  local ascii = shared and shared.current() == "ascii"
   local devicons
-  if options().icons then
+  if options().icons and not shared then
     local ok, provider = pcall(require, "nvim-web-devicons")
     if ok then
       devicons = provider
@@ -149,17 +152,24 @@ function M.refresh(state, focus_path)
         truncated = true
         break
       end
-      local marker = child.directory and (state.expanded[child.path] and "▾ " or "▸ ") or "  "
+      -- Fold markers remain structural when decorative icons are hidden.
+      local expanded = state.expanded[child.path]
+      local marker = child.directory
+          and (expanded and (ascii and "v " or "▾ ") or (ascii and "> " or "▸ "))
+        or "  "
       local prefix = string.rep("  ", depth) .. marker
       local icon, icon_group
       if options().icons then
-        if child.directory then
-          icon = state.expanded[child.path] and "" or ""
+        if shared then
+          icon, icon_group = shared.get(child.directory and "directory" or "file", child.path)
+        elseif child.directory then
+          icon = expanded and "" or ""
           icon_group = "FileToolsDirectory"
         elseif devicons then
           icon, icon_group = devicons.get_icon(child.name, nil, { default = true, strict = true })
         end
         icon = icon or ""
+        icon = icon ~= "" and icon or nil
         icon_group = icon_group or (child.link and "FileToolsSymlink" or "FileToolsFile")
       end
       child.name_col = #prefix + (icon and #icon + 1 or 0)
@@ -654,6 +664,15 @@ function M.setup()
           end
           state.expanded = expanded
         end
+        queue_refresh(state)
+      end
+    end,
+  })
+  api.nvim_create_autocmd("User", {
+    group = group,
+    pattern = { "ThemeToolsReady", "ThemeToolsIconsChanged" },
+    callback = function()
+      for _, state in pairs(states) do
         queue_refresh(state)
       end
     end,

@@ -71,7 +71,7 @@ local function snapshot()
     buffers[#buffers + 1] = { id = buf, name = api.nvim_buf_get_name(buf), modified = vim.bo[buf].modified }
   end
   local colors, palette, directory_attr
-  local file_icon
+  local file_icon, directory_text
   local tree_bars
   if tree then
     local pos = api.nvim_win_get_position(tree.win)
@@ -92,15 +92,23 @@ local function snapshot()
         local icon_pos = vim.fn.screenpos(tree.win, row, 3)
         local name_pos = vim.fn.screenpos(tree.win, row, node.name_col + 1)
         local provider = package.loaded["nvim-web-devicons"]
+        local shared = package.loaded["theme_tools.icons"]
+        local expected = shared and shared.get("file", node.path)
+          or provider and provider.get_icon(node.name, nil, { default = true, strict = true })
+          or ""
         file_icon = {
-          expected = provider and provider.get_icon(node.name, nil, { default = true, strict = true })
-            or "",
+          expected = expected,
           text = line:sub(3, node.name_col - 1),
-          cell = vim.fn.screenstring(icon_pos.row, icon_pos.col),
+          cell = expected ~= "" and vim.fn.screenstring(icon_pos.row, icon_pos.col) or "",
           icon_attr = vim.fn.screenattr(icon_pos.row, icon_pos.col),
           name_attr = vim.fn.screenattr(name_pos.row, name_pos.col),
-          provider = provider ~= nil,
+          provider = shared ~= nil or provider ~= nil,
         }
+      elseif node.name == "src" then
+        local shared = package.loaded["theme_tools.icons"]
+        local icon = shared and shared.get("directory", node.path) or ""
+        local marker = shared and shared.current() == "ascii" and "> " or "▸ "
+        directory_text = marker .. (icon ~= "" and icon .. " " or "") .. "src"
       end
     end
   end
@@ -134,6 +142,7 @@ local function snapshot()
     palette = palette,
     directory_attr = directory_attr,
     file_icon = file_icon,
+    directory_text = directory_text,
     tree_bars = tree_bars,
     dashboard = dashboard and {
       win = dashboard.win,
@@ -184,6 +193,12 @@ if not integrated then
   end)
 end
 if theme_test then
+  local icon_index = 0
+  vim.keymap.set("n", "<F8>", function()
+    local modes = { "ascii", "none", "devicons" }
+    icon_index = icon_index % #modes + 1
+    assert(require("theme_tools.icons").set(modes[icon_index]))
+  end)
   local index = 0
   vim.keymap.set("n", "<F7>", function()
     local loaded = package.loaded.theme_tools

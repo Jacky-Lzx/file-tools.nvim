@@ -179,11 +179,11 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
         assert reopened["tree"]["selected"] == before["current"], "Reopening did not reveal current file"
         send("\x17h")  # Enter Files explicitly for tree interaction
         opened = snapshot(lambda v: v.get("tree", {}).get("focus"), "Could not enter Files")
-        assert "▸  src" in opened["screen"] and "current.txt" in opened["screen"]
+        assert opened["directory_text"] in opened["screen"] and "current.txt" in opened["screen"]
         icon = opened["file_icon"]
         assert icon["text"] == icon["expected"] == icon["cell"], "File icon did not reach rendered cells"
         if integrated:
-            assert icon["provider"], "Configured devicons did not load on first tree use"
+            assert icon["provider"], "Configured icon provider did not load on first tree use"
             assert icon["icon_attr"] != icon["name_attr"], "File icon lost its own color"
         assert ".hidden" not in "\n".join(opened["tree"]["lines"])
         assert opened["tree"]["watchers"] > 0
@@ -199,7 +199,7 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
                 assert colors["WinSeparator"]["fg"] == int(palette["ui"]["border"][1:], 16)
                 assert frame["tree"]["cursor"] == opened["tree"]["cursor"]
                 assert frame["tree"]["buf"] == opened["tree"]["buf"]
-                assert "▸  src" in frame["screen"]
+                assert frame["directory_text"] in frame["screen"]
                 assert frame["file_icon"]["cell"] == frame["file_icon"]["expected"]
                 if integrated:
                     assert frame["file_icon"]["icon_attr"] != frame["file_icon"]["name_attr"]
@@ -207,6 +207,14 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
             assert frames[0]["directory_attr"] != frames[1]["directory_attr"], "Visible directory cells did not change color"
             assert frames[-1]["palette"]["ui"]["bg"] == "NONE"
             assert frames[-1]["colors"]["Normal"].get("bg") is None
+            for mode, expected_icon in (("ascii", "f"), ("none", ""), ("devicons", "")):
+                send("\x1b[19~")  # F8 changes the shared icon policy while Files stays open.
+                frame = snapshot(lambda v: v.get("file_icon", {}).get("expected") == expected_icon
+                                 and v["file_icon"]["text"] == expected_icon,
+                                 "Shared icon mode did not reach the tree: " + mode)
+                assert frame["directory_text"] in frame["screen"]
+                assert frame["file_icon"]["cell"] == expected_icon
+                assert frame["tree"]["selected"] == opened["tree"]["selected"]
         if integrated:
             send(" sf")
             snapshot(lambda v: v.get("picker", {}).get("ready"), "Configured file picker did not open from Files")
