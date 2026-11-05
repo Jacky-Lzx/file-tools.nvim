@@ -63,6 +63,10 @@ Terminal resizing adjusts the float and reuses uploaded image pixels.
 Text previews read at most 256 KiB, display up to 500 lines and truncate lines
 to 2000 bytes. Directories show their path; other binary files show a placeholder.
 Previews use the file on disk and do not modify files or editor buffers.
+Text highlighting uses installed Tree-sitter parsers and runtime queries,
+falling back to Vim syntax when unavailable. The preview sets 'filetype' without
+running FileType handlers or attaching language servers. LSP semantic tokens
+and editor-specific decorations are not copied from editing buffers.
 
 Images and PDF page one use the optional image-tools.nvim embedded render API.
 Configure it in your plugin manager; lazy loading is supported. Rendering needs

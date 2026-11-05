@@ -58,6 +58,36 @@ local function snapshot()
   vim.cmd.redraw()
   local tree = package.loaded["file_tools.tree"] and require("file_tools.tree").state()
   local dashboard = package.loaded["ui_tools.dashboard"] and require("ui_tools.dashboard").state()
+  local function text_highlights(win)
+    if vim.env.FILE_TOOLS_HIGHLIGHT_TEST ~= "1" then
+      return
+    end
+    local buf = api.nvim_win_get_buf(win)
+    if api.nvim_buf_get_lines(buf, 0, 1, false)[1] ~= [[\usepackage{geometry}]] then
+      return
+    end
+    -- Compare complete visible attributes on the same surface; the editor and
+    -- preview normally have different backgrounds. screenattr sees floats too.
+    vim.wo[win].cursorline = false
+    vim.wo[win].winhighlight =
+      "Normal:FileToolsNormal,NormalNC:FileToolsNormal,FloatBorder:FileToolsWinSeparator"
+    vim.cmd.redraw()
+    local cells = {}
+    for _, point in ipairs({ { 1, 2 }, { 1, 12 }, { 1, 13 }, { 1, 21 }, { 2, 3 }, { 3, 2 }, { 4, 7 } }) do
+      local pos = vim.fn.screenpos(win, point[1], point[2])
+      cells[#cells + 1] = {
+        text = vim.fn.screenstring(pos.row, pos.col),
+        attributes = vim.fn.screenattr(pos.row, pos.col),
+      }
+    end
+    return {
+      cells = cells,
+      filetype = vim.bo[buf].filetype,
+      syntax = vim.bo[buf].syntax,
+      treesitter = vim.treesitter.highlighter.active[buf] ~= nil,
+      clients = #vim.lsp.get_clients({ bufnr = buf }),
+    }
+  end
   local screen = {}
   for row = 1, vim.o.lines do
     local line = {}
@@ -135,6 +165,7 @@ local function snapshot()
     current = api.nvim_buf_get_name(0),
     origin = api.nvim_get_current_win() == origin,
     origin_cursor = api.nvim_win_get_cursor(origin),
+    editor_highlights = text_highlights(origin),
     screen = table.concat(screen, "\n"),
     buffers = buffers,
     cwd = vim.fn.getcwd(),
@@ -167,6 +198,7 @@ local function snapshot()
       path = tree.preview.path,
       lines = api.nvim_buf_get_lines(tree.preview.buf, 0, -1, false),
       config = api.nvim_win_get_config(tree.preview.win),
+      highlights = text_highlights(tree.preview.win),
       stage = tree.preview.view and tree.preview.view.session and tree.preview.view.session.stage,
       grid = tree.preview.view and tree.preview.view.grid ~= nil,
       placement_size = tree.preview.view and { tree.preview.view.width, tree.preview.view.height },

@@ -79,6 +79,10 @@ closing the tree releases either preview.
 The float adapts to terminal resizing. Text previews read at most 256 KiB,
 show up to 500 lines and limit each line to 2000 bytes. Other binary files show
 a placeholder, and directories show their path.
+Text highlighting uses the installed Tree-sitter parser and runtime highlight
+queries, with Vim syntax as a fallback. The preview sets its filetype without
+running FileType handlers or attaching language servers; LSP semantic tokens
+and editor-specific decorations are not copied from editing buffers.
 
 Images and the first page of PDFs render through the optional `image-tools.nvim`
 embedded API, loaded only for media previews. Add it to your plugin manager
@@ -182,6 +186,7 @@ FILE_TOOLS_THEME_TEST=1 python3 tests/tui.py # real theme switches in the visibl
 FILE_TOOLS_CONFIGURED=1 FILE_TOOLS_INTEGRATED=1 FILE_TOOLS_THEME_TEST=1 python3 tests/tui.py # actual configured e/E/cw mappings
 FILE_TOOLS_IMAGE_TEST=1 python3 tests/tui.py # real image/PDF conversion + Kitty protocol responder
 FILE_TOOLS_CONFIGURED=1 FILE_TOOLS_INTEGRATED=1 FILE_TOOLS_IMAGE_TEST=1 python3 tests/tui.py # configured media previews
+FILE_TOOLS_CONFIGURED=1 FILE_TOOLS_INTEGRATED=1 FILE_TOOLS_HIGHLIGHT_TEST=1 python3 tests/tui.py # compare rendered TeX highlighting
 FILE_TOOLS_CONFIGURED=1 FILE_TOOLS_INTEGRATED=1 FILE_TOOLS_DASHBOARD_TEST=picker python3 tests/tui.py # startup dashboard + Files + Space sf
 FILE_TOOLS_CONFIGURED=1 FILE_TOOLS_INTEGRATED=1 FILE_TOOLS_DASHBOARD_TEST=tree python3 tests/tui.py # startup dashboard + Files + Enter
 nvim --headless -u NONE -i NONE -n -l tests/real_lsp.lua # installed TypeScript server

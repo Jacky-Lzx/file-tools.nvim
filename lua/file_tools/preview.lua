@@ -15,6 +15,14 @@ local media = {
   pdf = true,
 }
 
+local function set_filetype(buf, ft)
+  -- Resolve filetype-specific highlight links without attaching editor plugins,
+  -- LSP clients or ftplugins to this reused scratch buffer.
+  api.nvim_buf_call(buf, function()
+    vim.cmd({ cmd = "setlocal", args = { "filetype=" .. ft }, mods = { noautocmd = true } })
+  end)
+end
+
 local function layout(state)
   local columns, lines = vim.o.columns, math.max(3, vim.o.lines - vim.o.cmdheight - 2)
   local left = api.nvim_win_get_position(state.win)[2]
@@ -105,13 +113,28 @@ function M.update(state, node, force)
     end
     return true
   end
-  local function write(lines, syntax)
+  local function write(lines, filename)
     paint(function(buf)
+      set_filetype(buf, "")
+      pcall(vim.treesitter.stop, buf)
+      vim.bo[buf].syntax = ""
       for index, line in ipairs(lines) do
         lines[index] = line:gsub("[\r\n]", " ")
       end
-      vim.bo[buf].syntax = syntax or ""
       api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+      local ft = filename and vim.filetype.match({ filename = filename, buf = buf }) or ""
+      set_filetype(buf, ft)
+      if ft ~= "" then
+        local lang = vim.treesitter.language.get_lang(ft) or ft
+        local ok = pcall(function()
+          assert(vim.treesitter.query.get(lang, "highlights"), "No highlight query")
+          vim.treesitter.start(buf, lang)
+        end)
+        if not ok then
+          pcall(vim.treesitter.stop, buf)
+          vim.bo[buf].syntax = ft
+        end
+      end
       api.nvim_win_set_cursor(preview.win, { 1, 0 })
     end)
   end
@@ -205,7 +228,7 @@ function M.update(state, node, force)
               if stat.size > #data or #lines >= 500 then
                 lines[#lines + 1] = "… preview truncated"
               end
-              write(lines, vim.filetype.match({ filename = node.path }))
+              write(lines, node.path)
             end
           end)
         end)

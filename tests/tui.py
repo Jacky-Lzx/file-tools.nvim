@@ -21,16 +21,20 @@ configured = os.environ.get("FILE_TOOLS_CONFIGURED") == "1"
 theme_test = os.environ.get("FILE_TOOLS_THEME_TEST") == "1"
 integrated = os.environ.get("FILE_TOOLS_INTEGRATED") == "1"
 image_test = os.environ.get("FILE_TOOLS_IMAGE_TEST") == "1"
+highlight_test = os.environ.get("FILE_TOOLS_HIGHLIGHT_TEST") == "1"
 image_root = Path(os.environ.get("FILE_TOOLS_IMAGE_TOOLS", root.parent / "image-tools.nvim"))
 dashboard_test = os.environ.get("FILE_TOOLS_DASHBOARD_TEST")
 assert not integrated or configured, "Integrated acceptance requires FILE_TOOLS_CONFIGURED=1"
 assert not dashboard_test or integrated, "Dashboard acceptance requires the actual configured integrations"
+assert not highlight_test or integrated, "TeX highlighting acceptance requires the actual configured integrations"
 with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
     fixture = Path(temporary).resolve()
     (fixture / "src").mkdir()
     (fixture / "src/child.txt").write_text("child\n")
     (fixture / "current.txt").write_text("current\n")
     (fixture / "current.lua").write_text("return {}\n")
+    if highlight_test:
+        (fixture / "style.tex").write_text("\\usepackage{geometry}\n% preview comment\n\\geometry{left=0.75in}\n$x + \\alpha$\n")
     (fixture / ".hidden").write_text("hidden\n")
     if image_test:
         shutil.copyfile(image_root / "tests/fixtures/fixture.png", fixture / "preview image.PNG")
@@ -320,8 +324,31 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
             snapshot(lambda v: v.get("tree", {}).get("root") == str(fixture), "Working directory mapping did not reset root")
             send(" e")
             snapshot(lambda v: not v.get("tree"), "Configured toggle did not close tree")
+        if highlight_test:
+            send(toggle)
+            snapshot(lambda v: bool(v.get("tree")), "Files did not reopen for TeX highlight comparison")
+            send("\x17h/style.tex\r\r")
+            editor = snapshot(lambda v: v.get("editor_highlights", {}).get("treesitter")
+                              and v["editor_highlights"]["cells"][0]["text"] == "u",
+                              "Normal TeX buffer did not start Tree-sitter")["editor_highlights"]
+            assert len({cell["attributes"] for cell in editor["cells"]}) >= 3, "Reference TeX buffer has no distinct token styles"
+            send("\x17h/style.tex\r\t")
+            frame = snapshot(lambda v: v.get("preview", {}).get("highlights", {}).get("treesitter")
+                             and v["preview"]["highlights"]["cells"][0]["text"] == "u",
+                             "TeX preview did not start Tree-sitter")
+            highlights = frame["preview"]["highlights"]
+            assert frame["tree"]["focus"], "Highlighting stole Files focus"
+            assert highlights["filetype"] == editor["filetype"] == "tex"
+            assert highlights["syntax"] == editor["syntax"] == ""
+            assert highlights["clients"] == 0, "Preview attached a language server"
+            assert len(editor["cells"]) == len(highlights["cells"])
+            for original, preview_cell in zip(editor["cells"], highlights["cells"]):
+                # Conceal can shift glyphs; compare styles at the same source byte.
+                assert original["attributes"] == preview_cell["attributes"], (original, preview_cell)
+            send("\x1bq")
+            snapshot(lambda v: not v.get("tree") and not v.get("preview"), "TeX preview did not clean up")
         assert len(transcript) > 1000
-        print("PTY" + (" (configured)" if configured else "") + ": rendered tree, folding/opening, create/rename prompts, hidden files, resize and cleanup, Tab single preview, P toggle and Escape" + (", real shared theme colors and transparency" if theme_test else "") + (", actual configured mappings and LSP dependencies" if integrated else "") + (", image/PDF uploads, placements and resize reuse" if image_test else "") + " passed")
+        print("PTY" + (" (configured)" if configured else "") + ": rendered tree, folding/opening, create/rename prompts, hidden files, resize and cleanup, Tab single preview, P toggle and Escape" + (", real shared theme colors and transparency" if theme_test else "") + (", actual configured mappings and LSP dependencies" if integrated else "") + (", image/PDF uploads, placements and resize reuse" if image_test else "") + (", matching rendered TeX token colors and styles" if highlight_test else "") + " passed")
     finally:
         send("\x1b:qa!\r")
         try:
