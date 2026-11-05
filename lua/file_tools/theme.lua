@@ -24,9 +24,9 @@ local function apply(c)
     Directory = { fg = c.palette.blue },
     File = { fg = c.ui.fg },
     Symlink = { fg = c.palette.cyan },
-    Normal = { fg = c.ui.fg, bg = c.ui.bg },
+    Normal = { fg = c.ui.fg, bg = c.ui.sidebar_bg },
     CursorLine = { bg = c.ui.cursorline_bg },
-    WinSeparator = { fg = c.ui.border, bg = c.ui.bg },
+    WinSeparator = { fg = c.ui.border, bg = c.ui.sidebar_bg },
     Error = { fg = c.diagnostic.error },
     Warn = { fg = c.diagnostic.warn },
   }
