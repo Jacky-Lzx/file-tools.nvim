@@ -28,7 +28,8 @@ TREE                                                     *file-tools-tree*
 
     <CR>, l, double-click   Open a file or toggle a directory.
     h                       Collapse directory or select parent.
-    <Tab>                   Toggle floating preview; focus stays in Files.
+    <Tab>                   Open a single floating preview; focus stays in Files.
+    P                       Toggle preview that follows the selection.
     <Esc>                   Close preview.
     s / S / t               Vertical split / horizontal split / tab.
     a / r / d               Create / move or rename / delete permanently.
@@ -53,8 +54,10 @@ directories are displayed as errors. Closing the tree releases its resources.
 FLOATING PREVIEW                                       *file-tools-preview*
 
 Press <Tab> to preview the selected file in a nonfocusable float beside Files.
-Moving the selection updates the preview. <Tab>, <Esc>, leaving Files (including
-opening a file) or closing the tree releases its window, buffer and renderer.
+Repeated <Tab> keeps it open; moving to another file closes this single preview.
+P toggles following preview, which updates as the selection moves. P on a single
+preview enables following; <Tab> returns to single preview. <Esc>, leaving Files
+(including opening a file) or closing the tree releases the window and renderer.
 Terminal resizing adjusts the float and reuses uploaded image pixels.
 
 Text previews read at most 256 KiB, display up to 500 lines and truncate lines

@@ -225,17 +225,26 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
                              "Tab did not show text preview")
         assert previewed["tree"]["focus"] and "current" in previewed["screen"]
         assert not previewed["preview"]["config"]["focusable"]
-        send("/current.lua\r")
-        snapshot(lambda v: v.get("preview", {}).get("lines", [None])[0] == "return {}",
-                 "Moving selection did not update preview")
         send("\t")
-        snapshot(lambda v: not v.get("preview") and v["tree"]["focus"], "Tab did not hide preview")
+        repeated = snapshot(lambda v: bool(v.get("preview")), "Repeated Tab closed the single preview")
+        assert repeated["preview"]["win"] == previewed["preview"]["win"]
+        send("/current.lua\r")
+        snapshot(lambda v: not v.get("preview") and v["tree"]["focus"],
+                 "Single preview followed the new selection")
+        send("P")
+        snapshot(lambda v: v.get("preview", {}).get("lines", [None])[0] == "return {}",
+                 "P did not enable following preview")
+        send("/current.txt\r")
+        snapshot(lambda v: v.get("preview", {}).get("lines", [None])[0] == "current",
+                 "Following preview did not update selection")
+        send("P")
+        snapshot(lambda v: not v.get("preview") and v["tree"]["focus"], "P did not hide preview")
         send("\t\x1b")
         snapshot(lambda v: not v.get("preview") and v["tree"]["focus"], "Escape did not close preview")
         if image_test:
             media_win = None
             for name in ("preview image", "preview pages"):
-                send("/" + name + "\r" + ("\t" if media_win is None else ""))
+                send("/" + name + "\r" + ("P" if media_win is None else ""))
                 frame = snapshot(lambda v: v.get("preview", {}).get("stage") == "ready"
                                  and v["preview"]["grid"], "Image/PDF did not render: " + name, timeout=15)
                 assert frame["tree"]["focus"] and frame["preview"]["path"].startswith(str(fixture))
@@ -252,8 +261,8 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
                                        "PDF preview did not adapt to resize")
                     assert len(uploads) == before, "Resize uploaded duplicate pixels"
                     assert resized["tree"]["focus"]
-            send("\t")
-            snapshot(lambda v: not v.get("preview"), "Media preview leaked after Tab")
+            send("P")
+            snapshot(lambda v: not v.get("preview"), "Media preview leaked after P")
             assert not active_placements, "Closing preview left visible image placements"
             assert len(uploads) == 2 and len(placements) >= 3, "Missing image/PDF uploads or resize placement"
             fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 140, 1400, 800))
@@ -299,7 +308,7 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
             send(" e")
             snapshot(lambda v: not v.get("tree"), "Configured toggle did not close tree")
         assert len(transcript) > 1000
-        print("PTY" + (" (configured)" if configured else "") + ": rendered tree, folding/opening, create/rename prompts, hidden files, resize and cleanup, Tab/Escape text previews" + (", real shared theme colors and transparency" if theme_test else "") + (", actual configured mappings and LSP dependencies" if integrated else "") + (", image/PDF uploads, placements and resize reuse" if image_test else "") + " passed")
+        print("PTY" + (" (configured)" if configured else "") + ": rendered tree, folding/opening, create/rename prompts, hidden files, resize and cleanup, Tab single preview, P toggle and Escape" + (", real shared theme colors and transparency" if theme_test else "") + (", actual configured mappings and LSP dependencies" if integrated else "") + (", image/PDF uploads, placements and resize reuse" if image_test else "") + " passed")
     finally:
         send("\x1b:qa!\r")
         try:

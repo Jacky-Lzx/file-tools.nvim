@@ -46,7 +46,8 @@ paths with spaces supported; no shell quotes are needed.
 | --- | --- |
 | Enter, `l`, double-click | Open a file or fold a directory |
 | `h` | Collapse or select parent |
-| Tab, Esc | Toggle floating preview, close preview |
+| Tab | Open a single floating preview |
+| `P`, Esc | Toggle following preview, close preview |
 | `s`, `S`, `t` | Vertical split, horizontal split, tab |
 | `a`, `r`, `d` | Create, move/rename, confirmed permanent delete |
 | `y`, `x`, `p` | Copy, cut, paste |
@@ -70,8 +71,11 @@ without cloning a start screen. Closing the last tree releases its buffer lock.
 When ui-tools manages window bars, the tree declares a centered `Files` title
 and a minimal `file-tools` footer through buffer-local bar profiles.
 
-Tab opens a floating preview beside Files without moving focus. Moving the
-selection updates it; Tab, Esc, leaving Files or closing the tree releases it.
+Tab opens a single floating preview beside Files without moving focus. Pressing
+Tab again keeps it open; moving to another file closes it. `P` toggles following
+preview, which updates as the selection moves. Pressing `P` on a single preview
+enables following; Tab returns it to single preview. Esc, leaving Files or
+closing the tree releases either preview.
 The float adapts to terminal resizing. Text previews read at most 256 KiB,
 show up to 500 lines and limit each line to 2000 bytes. Other binary files show
 a placeholder, and directories show their path.

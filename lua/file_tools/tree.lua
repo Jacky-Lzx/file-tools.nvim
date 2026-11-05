@@ -359,6 +359,9 @@ end
 local function map(state)
   local keys = {
     ["<Tab>"] = function()
+      preview.open(state, selected(state))
+    end,
+    P = function()
       preview.toggle(state, selected(state))
     end,
     ["<Esc>"] = function()
@@ -461,7 +464,7 @@ local function map(state)
     end,
     ["?"] = function()
       vim.notify(
-        "file-tools tree\nEnter/l open or fold · h parent/fold · s/S split · t tab\nTab preview · Esc close preview\na create · r move · d delete · y/x copy/cut · p paste · Y copy path\n. hidden · R refresh · - parent root · C set root · f reveal · q close\n/ search filenames with Neovim's normal search",
+        "file-tools tree\nEnter/l open or fold · h parent/fold · s/S split · t tab\nTab preview once · P toggle preview · Esc close preview\na create · r move · d delete · y/x copy/cut · p paste · Y copy path\n. hidden · R refresh · - parent root · C set root · f reveal · q close\n/ search filenames with Neovim's normal search",
         vim.log.levels.INFO
       )
     end,

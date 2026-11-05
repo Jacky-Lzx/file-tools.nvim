@@ -34,11 +34,11 @@ end
 local function open(name)
   local state = tree.open({ root = h.root })
   select(state, name)
-  key("<Tab>")
+  key("P")
   return state
 end
 
-h.test("Tab toggles a read-only float while preserving Files and editor", function()
+h.test("P toggles a read-only float while preserving Files and editor", function()
   local origin, buf = api.nvim_get_current_win(), api.nvim_get_current_buf()
   local listed = vim.fn.getbufinfo({ buflisted = 1 })
   local state = open("a.txt")
@@ -53,9 +53,54 @@ h.test("Tab toggles a read-only float while preserving Files and editor", functi
   h.eq(false, vim.bo[float.buf].modifiable)
   h.eq(false, vim.bo[float.buf].modified)
   h.eq(false, api.nvim_win_get_config(float.win).focusable)
-  key("<Tab>")
+  key("P")
   h.eq(nil, state.preview)
   assert(not api.nvim_win_is_valid(float.win) and not api.nvim_buf_is_valid(float.buf))
+  tree.close()
+end)
+
+h.test("Tab opens once, repeated Tab stays open and changing selection closes it", function()
+  local state = tree.open({ root = h.root })
+  select(state, "a.txt")
+  key("<Tab>")
+  local float = state.preview
+  wait_for(function()
+    return lines(state)[1] == "first preview"
+  end)
+  assert(not float.follow)
+  key("<Tab>")
+  h.eq(float, state.preview)
+  tree.refresh(state)
+  h.eq(float, state.preview)
+  h.eq(state.win, api.nvim_get_current_win())
+  select(state, "b.txt")
+  assert(not state.preview and not api.nvim_buf_is_valid(float.buf))
+  key("<Tab>")
+  wait_for(function()
+    return lines(state)[1] == "second preview"
+  end)
+  key("<Esc>")
+  h.eq(nil, state.preview)
+  tree.close()
+end)
+
+h.test("P enables following from a single preview and Tab returns to single preview", function()
+  local state = tree.open({ root = h.root })
+  select(state, "a.txt")
+  key("<Tab>")
+  local float = state.preview
+  key("P")
+  h.eq(float, state.preview)
+  assert(float.follow)
+  select(state, "b.txt")
+  wait_for(function()
+    return lines(state)[1] == "second preview"
+  end)
+  key("<Tab>")
+  assert(not float.follow)
+  h.eq(float, state.preview)
+  select(state, "a.txt")
+  h.eq(nil, state.preview)
   tree.close()
 end)
 
@@ -189,7 +234,7 @@ h.test("rapid navigation and closing invalidate delayed preview work", function(
   end)
   local float = state.preview
   select(state, "a.txt")
-  key("<Tab>")
+  key("P")
   vim.wait(100, function()
     return false
   end)
@@ -228,7 +273,7 @@ h.test("late text reads cannot replace a newer selection or revive a closed floa
     return #deliveries == 3
   end)
   local buf = state.preview.buf
-  key("<Tab>")
+  key("P")
   deliveries[3]()
   vim.wait(50, function()
     return false
@@ -267,7 +312,7 @@ h.test("closing the only Files window with a preview releases its lock", functio
   api.nvim_win_close(state.target_win, true)
   -- Entering the remaining Files window may close an existing preview on leave.
   if not state.preview then
-    key("<Tab>")
+    key("P")
   end
   tree.close()
   h.eq(nil, tree.state())

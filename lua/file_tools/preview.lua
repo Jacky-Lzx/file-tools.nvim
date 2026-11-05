@@ -66,6 +66,10 @@ function M.update(state, node, force)
   if not preview or not node then
     return
   end
+  if preview.generation > 0 and not preview.follow and preview.path ~= node.path and not force then
+    M.close(state)
+    return
+  end
   local stat = node.path and uv.fs_stat(node.path)
   local revision = stat and { stat.size, stat.mtime, stat.ctime, stat.ino }
   if
@@ -209,9 +213,10 @@ function M.update(state, node, force)
   end, 35)
 end
 
-function M.toggle(state, node)
+function M.open(state, node, follow)
   if state.preview then
-    M.close(state)
+    state.preview.follow = follow == true
+    M.update(state, node, state.preview.path ~= (node and node.path))
     return
   end
   local buf = api.nvim_create_buf(false, true)
@@ -219,7 +224,7 @@ function M.toggle(state, node)
   vim.bo[buf].swapfile = false
   vim.bo[buf].undolevels = -1
   local win = api.nvim_open_win(buf, false, layout(state))
-  local preview = { buf = buf, win = win, generation = 0 }
+  local preview = { buf = buf, win = win, generation = 0, follow = follow == true }
   state.preview = preview
   for name, value in pairs({
     wrap = false,
@@ -272,6 +277,14 @@ function M.toggle(state, node)
     end,
   })
   M.update(state, node)
+end
+
+function M.toggle(state, node)
+  if state.preview and state.preview.follow then
+    M.close(state)
+  else
+    M.open(state, node, true)
+  end
 end
 
 return M
