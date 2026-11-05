@@ -110,6 +110,52 @@ h.test("edits during authentication do not reach disk", function()
   assert(failure:find("Buffer changed", 1, true), failure)
   assert(not uv.fs_stat(name) and vim.bo.modified)
 end)
+h.test("encoding changes during authentication are guarded", function()
+  edit(h.root .. "/changed-encoding")
+  api.nvim_buf_set_lines(0, 0, -1, false, { "snapshot" })
+  local done, failure
+  privileged.write(nil, {
+    sudo = fake,
+    on_done = function(ok, err)
+      assert(not ok)
+      done, failure = true, err
+    end,
+  })
+  vim.bo.fileformat = vim.bo.fileformat == "dos" and "unix" or "dos"
+  assert(vim.wait(3000, function()
+    return done
+  end, 10))
+  assert(failure:find("Buffer changed", 1, true), failure)
+  assert(not uv.fs_stat(api.nvim_buf_get_name(0)))
+end)
+h.test("native save bookkeeping allows the next ordinary write", function()
+  edit(h.root .. "/native-save")
+  api.nvim_buf_set_lines(0, 0, -1, false, { "first save" })
+  local posts = 0
+  local id = api.nvim_create_autocmd("BufWritePost", {
+    buffer = 0,
+    callback = function()
+      posts = posts + 1
+    end,
+  })
+  assert(operation("write"))
+  h.eq(1, posts)
+  api.nvim_buf_set_lines(0, 0, -1, false, { "ordinary save" })
+  vim.cmd.write()
+  h.eq({ "ordinary save" }, vim.fn.readfile(api.nvim_buf_get_name(0)))
+  h.eq(2, posts)
+  api.nvim_del_autocmd(id)
+end)
+h.test("custom writers are rejected before transfer", function()
+  local id = api.nvim_create_autocmd("BufWriteCmd", {
+    buffer = 0,
+    callback = function()
+      error("must not run")
+    end,
+  })
+  assert(not pcall(privileged.write, nil, { sudo = fake }))
+  api.nvim_del_autocmd(id)
+end)
 h.test("commands load the implementation only when called", function()
   require("file_tools").setup({})
   assert(vim.fn.exists(":FileToolsRead") == 2 and vim.fn.exists(":FileToolsWrite") == 2)

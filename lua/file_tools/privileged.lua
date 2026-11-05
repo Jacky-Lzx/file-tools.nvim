@@ -60,6 +60,7 @@ local function operate(kind, path, opts)
     "Buffer has unsaved changes; use ! to discard them"
   )
   assert(kind ~= "read" or vim.bo[buf].modifiable, "Buffer is not modifiable")
+  require("file_tools.buffers").check_write(buf)
   local name, tick = api.nvim_buf_get_name(buf), api.nvim_buf_get_changedtick(buf)
   assert(not (path or name):match("^%a[%w+.-]*://"), "expected a local file path")
   path = require("file_tools.path").absolute(path or name)
@@ -75,7 +76,19 @@ local function operate(kind, path, opts)
   local state = { done = false, buf = buf, path = path }
   pending[buf] = state
   local initial_stat = stat(path)
+  local initial_options = {}
+  for _, option in ipairs(file_options) do
+    initial_options[option] = vim.bo[buf][option]
+  end
   local function unchanged()
+    if not api.nvim_buf_is_loaded(buf) then
+      return false
+    end
+    for _, option in ipairs(file_options) do
+      if vim.bo[buf][option] ~= initial_options[option] then
+        return false
+      end
+    end
     return api.nvim_buf_is_loaded(buf)
       and api.nvim_buf_get_name(buf) == name
       and api.nvim_buf_get_changedtick(buf) == tick
@@ -181,7 +194,7 @@ local function operate(kind, path, opts)
         for _, option in ipairs(file_options) do
           vim.bo[buf][option] = data.options[option]
         end
-        vim.bo[buf].modified = false
+        require("file_tools.buffers").mark_saved(buf)
         api.nvim_buf_call(buf, function()
           if vim.bo[buf].filetype == "" then
             vim.cmd("filetype detect")
@@ -189,7 +202,7 @@ local function operate(kind, path, opts)
           api.nvim_exec_autocmds("BufReadPost", { buffer = buf, modeline = false })
         end)
       elseif unchanged() and name ~= "" and require("file_tools.path").absolute(name) == path then
-        vim.bo[buf].modified = false
+        require("file_tools.buffers").mark_saved(buf)
         api.nvim_exec_autocmds("BufWritePost", { buffer = buf, modeline = false })
       end
     end)

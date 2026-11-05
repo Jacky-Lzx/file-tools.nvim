@@ -9,7 +9,7 @@ local function check_write_handlers(buf, name)
       local pattern = vim.fn.glob2regpat(handler.pattern)
       matches = vim.fn.match(name, pattern) >= 0 or vim.fn.match(vim.fs.basename(name), pattern) >= 0
     end
-    assert(not matches, "cannot rename a buffer with a custom BufWriteCmd handler")
+    assert(not matches, "buffer has a custom BufWriteCmd handler")
   end
 end
 
@@ -50,6 +50,28 @@ local function clear_write_guard(buf)
     vim.fn.delete(history, "rf")
   end
   vim.bo[buf].modified = modified
+  assert(ok, err)
+end
+
+-- Privileged transfers happen outside Neovim's writer. A native no-op write
+-- acknowledges timestamps/new-file flags and updates the undo save point.
+function M.check_write(buf)
+  check_write_handlers(buf, api.nvim_buf_get_name(buf))
+end
+
+function M.mark_saved(buf)
+  M.check_write(buf)
+  local id = api.nvim_create_autocmd("BufWriteCmd", {
+    buffer = buf,
+    once = true,
+    callback = function()
+      vim.bo[buf].modified = false
+    end,
+  })
+  local ok, err = pcall(api.nvim_buf_call, buf, function()
+    vim.cmd("silent keepalt write!")
+  end)
+  pcall(api.nvim_del_autocmd, id)
   assert(ok, err)
 end
 
