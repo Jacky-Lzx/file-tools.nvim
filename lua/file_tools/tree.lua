@@ -1,5 +1,6 @@
 local api, uv = vim.api, vim.uv
 local path = require("file_tools.path")
+local preview = require("file_tools.preview")
 local M, states = {}, {}
 local ns = api.nvim_create_namespace("file_tools.tree")
 
@@ -204,6 +205,7 @@ function M.refresh(state, focus_path)
   local col = node.name_col or 0
   api.nvim_win_set_cursor(state.win, { row, math.min(col, #lines[row]) })
   watch(state, directories)
+  preview.update(state, node)
 end
 
 local function reveal(state, name)
@@ -356,6 +358,12 @@ end
 
 local function map(state)
   local keys = {
+    ["<Tab>"] = function()
+      preview.toggle(state, selected(state))
+    end,
+    ["<Esc>"] = function()
+      preview.close(state)
+    end,
     ["<CR>"] = function()
       open_node(state)
     end,
@@ -453,7 +461,7 @@ local function map(state)
     end,
     ["?"] = function()
       vim.notify(
-        "file-tools tree\nEnter/l open or fold · h parent/fold · s/S split · t tab\na create · r move · d delete · y/x copy/cut · p paste · Y copy path\n. hidden · R refresh · - parent root · C set root · f reveal · q close\n/ search filenames with Neovim's normal search",
+        "file-tools tree\nEnter/l open or fold · h parent/fold · s/S split · t tab\nTab preview · Esc close preview\na create · r move · d delete · y/x copy/cut · p paste · Y copy path\n. hidden · R refresh · - parent root · C set root · f reveal · q close\n/ search filenames with Neovim's normal search",
         vim.log.levels.INFO
       )
     end,
@@ -530,10 +538,17 @@ function M.open(opts)
     vim.wo[state.win][name] = value
   end
   map(state)
+  api.nvim_create_autocmd("CursorMoved", {
+    buffer = state.buf,
+    callback = function()
+      preview.update(state, selected(state))
+    end,
+  })
   api.nvim_create_autocmd("BufWipeout", {
     buffer = state.buf,
     once = true,
     callback = function()
+      preview.close(state)
       stop_watchers(state)
       if states[tab] == state then
         states[tab] = nil
@@ -553,6 +568,7 @@ function M.close(tab)
   if not state then
     return
   end
+  preview.close(state)
   stop_watchers(state)
   states[tab] = nil
   if valid(state) then

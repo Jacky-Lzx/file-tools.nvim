@@ -3,6 +3,7 @@
 Requirements: Neovim 0.11+. No external program dependencies.
 Optional dependency: theme-tools.nvim for shared semantic colors.
 Optional dependency: nvim-web-devicons for file type icons and colors.
+Optional dependency: image-tools.nvim for image and PDF previews.
 No mappings, netrw replacement, cwd changes or LSP configuration are automatic.
 
 COMMAND                                                        *:FileTools*
@@ -27,6 +28,8 @@ TREE                                                     *file-tools-tree*
 
     <CR>, l, double-click   Open a file or toggle a directory.
     h                       Collapse directory or select parent.
+    <Tab>                   Toggle floating preview; focus stays in Files.
+    <Esc>                   Close preview.
     s / S / t               Vertical split / horizontal split / tab.
     a / r / d               Create / move or rename / delete permanently.
     y / x / p               Copy / cut / paste (never overwrite).
@@ -46,6 +49,24 @@ editing window, preserving the tree. Watchers refresh visible directories, with
 a limit of 64 watchers per tree. R refreshes when watchers are unavailable.
 An entry limit bounds rendering; narrow the root if it is reached. Unreadable
 directories are displayed as errors. Closing the tree releases its resources.
+
+FLOATING PREVIEW                                       *file-tools-preview*
+
+Press <Tab> to preview the selected file in a nonfocusable float beside Files.
+Moving the selection updates the preview. <Tab>, <Esc>, leaving Files (including
+opening a file) or closing the tree releases its window, buffer and renderer.
+Terminal resizing adjusts the float and reuses uploaded image pixels.
+
+Text previews read at most 256 KiB, display up to 500 lines and truncate lines
+to 2000 bytes. Directories show their path; other binary files show a placeholder.
+Previews use the file on disk and do not modify files or editor buffers.
+
+Images and PDF page one use the optional image-tools.nvim embedded render API.
+Configure it in your plugin manager; lazy loading is supported. Rendering needs
+a Kitty graphics compatible terminal with 'termguicolors'. Image conversion uses
+image-tools' configured tools: ImageMagick, with Ghostscript for PDFs. Errors or
+missing dependencies appear in the preview instead of opening binary data.
+Rapid selection changes discard pending work and reject stale draws/errors.
 
 File/folder icons are enabled by default; use a Nerd Font in your terminal.
 If nvim-web-devicons is available, file icons and colors come from its filename

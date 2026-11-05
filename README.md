@@ -4,6 +4,7 @@ File operations, buffer paths and language servers under one owner, with a
 tab-local tree. Requires Neovim 0.11+; no mandatory Lua or external program dependencies.
 `theme-tools.nvim` provides optional shared palette integration.
 `nvim-web-devicons` provides optional file type icons.
+`image-tools.nvim` provides optional image and PDF previews.
 
 The plugin does not change global mappings, working directories, netrw, or LSP
 configuration automatically. Existing file plugins can stay installed while you
@@ -45,6 +46,7 @@ paths with spaces supported; no shell quotes are needed.
 | --- | --- |
 | Enter, `l`, double-click | Open a file or fold a directory |
 | `h` | Collapse or select parent |
+| Tab, Esc | Toggle floating preview, close preview |
 | `s`, `S`, `t` | Vertical split, horizontal split, tab |
 | `a`, `r`, `d` | Create, move/rename, confirmed permanent delete |
 | `y`, `x`, `p` | Copy, cut, paste |
@@ -67,6 +69,19 @@ without cloning a start screen. Closing the last tree releases its buffer lock.
 
 When ui-tools manages window bars, the tree declares a centered `Files` title
 and a minimal `file-tools` footer through buffer-local bar profiles.
+
+Tab opens a floating preview beside Files without moving focus. Moving the
+selection updates it; Tab, Esc, leaving Files or closing the tree releases it.
+The float adapts to terminal resizing. Text previews read at most 256 KiB,
+show up to 500 lines and limit each line to 2000 bytes. Other binary files show
+a placeholder, and directories show their path.
+
+Images and the first page of PDFs render through the optional `image-tools.nvim`
+embedded API, loaded only for media previews. Add it to your plugin manager
+(lazy loading is supported). Rendering requires a Kitty graphics compatible
+terminal and `termguicolors`; conversion uses image-tools' configured tools
+(ImageMagick, with Ghostscript for PDF). Missing dependencies and rendering
+errors appear inside the preview. Source files and editor buffers stay untouched.
 
 File and folder icons are enabled by default and require a Nerd Font in your
 terminal. When available, `nvim-web-devicons` supplies filename/extension icons
@@ -149,12 +164,14 @@ require("file_tools").setup({
 `:checkhealth file_tools` checks dependencies. Run:
 
 ```sh
-bash tests/run.sh                         # core, tree, icons, themes
+bash tests/run.sh                         # core, tree, icons, themes, preview
 stylua --check lua plugin tests/*.lua
 python3 tests/tui.py                      # real PTY tree interaction
 FILE_TOOLS_CONFIGURED=1 python3 tests/tui.py # current Neovim configuration
 FILE_TOOLS_THEME_TEST=1 python3 tests/tui.py # real theme switches in the visible tree
 FILE_TOOLS_CONFIGURED=1 FILE_TOOLS_INTEGRATED=1 FILE_TOOLS_THEME_TEST=1 python3 tests/tui.py # actual configured e/E/cw mappings
+FILE_TOOLS_IMAGE_TEST=1 python3 tests/tui.py # real image/PDF conversion + Kitty protocol responder
+FILE_TOOLS_CONFIGURED=1 FILE_TOOLS_INTEGRATED=1 FILE_TOOLS_IMAGE_TEST=1 python3 tests/tui.py # configured media previews
 FILE_TOOLS_CONFIGURED=1 FILE_TOOLS_INTEGRATED=1 FILE_TOOLS_DASHBOARD_TEST=picker python3 tests/tui.py # startup dashboard + Files + Space sf
 FILE_TOOLS_CONFIGURED=1 FILE_TOOLS_INTEGRATED=1 FILE_TOOLS_DASHBOARD_TEST=tree python3 tests/tui.py # startup dashboard + Files + Enter
 nvim --headless -u NONE -i NONE -n -l tests/real_lsp.lua # installed TypeScript server
@@ -168,3 +185,7 @@ set `FILE_TOOLS_THEME_TOOLS` to use another checkout. Without it, the basic suit
 still checks standalone highlighting and reports the integration tests skipped.
 Icon tests also use the installed `nvim-web-devicons` checkout when available;
 set `FILE_TOOLS_DEVICONS` to use another checkout.
+Media PTY checks require the sibling `image-tools.nvim` checkout and its
+conversion tools; set `FILE_TOOLS_IMAGE_TOOLS` to use another checkout. They
+verify uploads, placements, resize reuse and cleanup through a deterministic
+Kitty protocol responder, rather than physical terminal pixels.

@@ -1,11 +1,14 @@
 """Drive the native file tree through PTY input, with rendered-cell checks."""
+import base64
 import fcntl
 import json
 import os
 from pathlib import Path
 import pty
+import re
 import select
 import signal
+import shutil
 import struct
 import subprocess
 import sys
@@ -17,6 +20,8 @@ root = Path(__file__).resolve().parents[1]
 configured = os.environ.get("FILE_TOOLS_CONFIGURED") == "1"
 theme_test = os.environ.get("FILE_TOOLS_THEME_TEST") == "1"
 integrated = os.environ.get("FILE_TOOLS_INTEGRATED") == "1"
+image_test = os.environ.get("FILE_TOOLS_IMAGE_TEST") == "1"
+image_root = Path(os.environ.get("FILE_TOOLS_IMAGE_TOOLS", root.parent / "image-tools.nvim"))
 dashboard_test = os.environ.get("FILE_TOOLS_DASHBOARD_TEST")
 assert not integrated or configured, "Integrated acceptance requires FILE_TOOLS_CONFIGURED=1"
 assert not dashboard_test or integrated, "Dashboard acceptance requires the actual configured integrations"
@@ -27,17 +32,59 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
     (fixture / "current.txt").write_text("current\n")
     (fixture / "current.lua").write_text("return {}\n")
     (fixture / ".hidden").write_text("hidden\n")
+    if image_test:
+        shutil.copyfile(image_root / "tests/fixtures/fixture.png", fixture / "preview image.PNG")
+        shutil.copyfile(image_root / "tests/fixtures/fixture.pdf", fixture / "preview pages.pdf")
     master, slave = pty.openpty()
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 140, 0, 0))
     env = dict(os.environ, TERM="xterm-256color", FILE_TOOLS_ROOT=str(root),
                FILE_TOOLS_FIXTURE=str(fixture), XDG_STATE_HOME=str(fixture / "state"),
                XDG_CACHE_HOME=str(fixture / "cache"), NVIM_LOG_FILE=str(fixture / "nvim.log"),
                NVIM_SMOKE_TEST="1", NVIM_LAZY_LOCKFILE=str(fixture / "lazy-lock.json"))
+    if image_test:
+        env.update(TERM="xterm-kitty", KITTY_WINDOW_ID="file-tools-pty-test")
+        for name in ("TMUX", "ZELLIJ", "SSH_CONNECTION", "SSH_TTY"):
+            env.pop(name, None)
     init = str(Path.home() / ".config/nvim/init.lua") if configured else "NONE"
     child = subprocess.Popen(["nvim", "--cmd", "let g:loaded_wakatime=1", "-u", init,
                               "-i", "NONE", "-n", "-c", "luafile " + str(root / "tests/tui.lua")],
                              stdin=slave, stdout=slave, stderr=slave, env=env)
     transcript = bytearray()
+    pattern = re.compile(rb"\x1b_G([^;\x1b]+)(?:;([^\x1b]*))?\x1b\\")
+    offset, pending, uploads, placements = 0, None, [], []
+    active_placements = set()
+
+    def respond():
+        global offset, pending
+        for match in pattern.finditer(transcript, offset):
+            offset = match.end()
+            fields = dict(part.split(b"=", 1) for part in match[1].split(b","))
+            action, identifier = fields.get(b"a"), fields.get(b"i")
+            data = None
+            if action == b"t":
+                if fields.get(b"t") == b"f":
+                    data = Path(base64.b64decode(match[2]).decode()).read_bytes()
+                else:
+                    pending = [fields, [match[2]]]
+            elif pending is not None and b"m" in fields:
+                pending[1].append(match[2])
+            if pending is not None and fields.get(b"m") == b"0":
+                fields, chunks = pending
+                identifier = fields[b"i"]
+                data, pending = base64.b64decode(b"".join(chunks)), None
+            if data is not None:
+                assert data.startswith(b"\x89PNG\r\n\x1a\n"), "Preview did not upload PNG data"
+                uploads.append(data)
+            if action == b"p":
+                placements.append(fields)
+                active_placements.add((identifier, fields.get(b"p")))
+            elif action == b"d":
+                assert fields.get(b"d") not in (b"A", b"a"), "Preview deleted unrelated terminal images"
+                active_placements.difference_update({item for item in active_placements
+                    if item[0] == identifier and (b"p" not in fields or item[1] == fields[b"p"])})
+            if (data is not None or action == b"p") and fields.get(b"q") != b"2":
+                placement = b",p=" + fields[b"p"] if action == b"p" and b"p" in fields else b""
+                os.write(master, b"\x1b_Gi=" + identifier + placement + b";OK\x1b\\")
 
     def drain(duration=0.1):
         deadline = time.monotonic() + duration
@@ -45,6 +92,8 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
             if select.select([master], [], [], min(0.02, max(0, deadline - time.monotonic())))[0]:
                 try:
                     transcript.extend(os.read(master, 65536))
+                    if image_test:
+                        respond()
                 except OSError:
                     break
 
@@ -171,6 +220,47 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
             chosen = snapshot(lambda v: not v.get("picker") and v["origin"] and v["current"] == str(fixture / "current.lua"), "File picker replaced Files instead of the editor")
             assert chosen["tree"]["buf"] == opened["tree"]["buf"], "File picker destroyed the Files buffer"
             send("\x17h")
+        send("/current.txt\r\t")
+        previewed = snapshot(lambda v: v.get("preview", {}).get("lines", [None])[0] == "current",
+                             "Tab did not show text preview")
+        assert previewed["tree"]["focus"] and "current" in previewed["screen"]
+        assert not previewed["preview"]["config"]["focusable"]
+        send("/current.lua\r")
+        snapshot(lambda v: v.get("preview", {}).get("lines", [None])[0] == "return {}",
+                 "Moving selection did not update preview")
+        send("\t")
+        snapshot(lambda v: not v.get("preview") and v["tree"]["focus"], "Tab did not hide preview")
+        send("\t\x1b")
+        snapshot(lambda v: not v.get("preview") and v["tree"]["focus"], "Escape did not close preview")
+        if image_test:
+            media_win = None
+            for name in ("preview image", "preview pages"):
+                send("/" + name + "\r" + ("\t" if media_win is None else ""))
+                frame = snapshot(lambda v: v.get("preview", {}).get("stage") == "ready"
+                                 and v["preview"]["grid"], "Image/PDF did not render: " + name, timeout=15)
+                assert frame["tree"]["focus"] and frame["preview"]["path"].startswith(str(fixture))
+                assert "Preview:" not in "\n".join(frame["preview"]["lines"])
+                if media_win is None:
+                    media_win = frame["preview"]["win"]
+                assert frame["preview"]["win"] == media_win, "Navigation replaced the preview window"
+                if name == "preview pages":
+                    before = len(uploads)
+                    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 100, 1000, 600))
+                    os.kill(child.pid, signal.SIGWINCH)
+                    resized = snapshot(lambda v: v.get("preview", {}).get("stage") == "ready"
+                                       and v["preview"]["config"]["width"] < frame["preview"]["config"]["width"],
+                                       "PDF preview did not adapt to resize")
+                    assert len(uploads) == before, "Resize uploaded duplicate pixels"
+                    assert resized["tree"]["focus"]
+            send("\t")
+            snapshot(lambda v: not v.get("preview"), "Media preview leaked after Tab")
+            assert not active_placements, "Closing preview left visible image placements"
+            assert len(uploads) == 2 and len(placements) >= 3, "Missing image/PDF uploads or resize placement"
+            fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 140, 1400, 800))
+            os.kill(child.pid, signal.SIGWINCH)
+        send("/current.lua\r\t\x17l")
+        snapshot(lambda v: not v.get("preview") and v["origin"], "Leaving Files leaked preview")
+        send("\x17h")
         send("/src\rl")  # Expand src using actual l mapping
         expanded = snapshot(lambda v: "child.txt" in "\n".join(v["tree"]["lines"]), "Directory did not expand")
         send("j\r")  # Open child in editor
@@ -209,7 +299,7 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
             send(" e")
             snapshot(lambda v: not v.get("tree"), "Configured toggle did not close tree")
         assert len(transcript) > 1000
-        print("PTY" + (" (configured)" if configured else "") + ": rendered tree, folding/opening, create/rename prompts, hidden files, resize and cleanup" + (", real shared theme colors and transparency" if theme_test else "") + (", actual configured mappings and LSP dependencies" if integrated else "") + " passed")
+        print("PTY" + (" (configured)" if configured else "") + ": rendered tree, folding/opening, create/rename prompts, hidden files, resize and cleanup, Tab/Escape text previews" + (", real shared theme colors and transparency" if theme_test else "") + (", actual configured mappings and LSP dependencies" if integrated else "") + (", image/PDF uploads, placements and resize reuse" if image_test else "") + " passed")
     finally:
         send("\x1b:qa!\r")
         try:

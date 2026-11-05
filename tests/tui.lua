@@ -4,6 +4,11 @@ local integrated = vim.env.FILE_TOOLS_INTEGRATED == "1"
 local dashboard_test = vim.env.FILE_TOOLS_DASHBOARD_TEST ~= nil
 if not integrated then
   vim.opt.runtimepath:prepend(root)
+  if vim.env.FILE_TOOLS_IMAGE_TEST == "1" then
+    vim.o.termguicolors = true
+    vim.opt.runtimepath:append(vim.env.FILE_TOOLS_IMAGE_TOOLS or vim.fs.dirname(root) .. "/image-tools.nvim")
+    require("image_tools").setup({ auto_preview = false, transport = "file" })
+  end
 end
 local theme_test = vim.env.FILE_TOOLS_THEME_TEST == "1"
 if theme_test then
@@ -146,6 +151,15 @@ local function snapshot()
     picker = picker and not picker.closed and {
       query = picker.query,
       ready = not picker.loading and not picker.matching and #picker.matches > 0,
+    } or nil,
+    preview = tree and tree.preview and {
+      win = tree.preview.win,
+      buf = tree.preview.buf,
+      path = tree.preview.path,
+      lines = api.nvim_buf_get_lines(tree.preview.buf, 0, -1, false),
+      config = api.nvim_win_get_config(tree.preview.win),
+      stage = tree.preview.view and tree.preview.view.session and tree.preview.view.session.stage,
+      grid = tree.preview.view and tree.preview.view.grid ~= nil,
     } or nil,
     tree = tree and {
       focus = api.nvim_get_current_win() == tree.win,
