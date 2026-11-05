@@ -21,4 +21,10 @@ for _, name in ipairs({ "create", "rename", "copy", "delete", "reconcile" }) do
   end
 end
 
+for _, name in ipairs({ "read", "write" }) do
+  M["privileged_" .. name] = function(...)
+    return require("file_tools.privileged")[name](...)
+  end
+end
+
 return M

@@ -149,6 +149,36 @@ Successful operations emit `User FileToolsChanged`, with the event in `ev.data`:
 `kind` (`Create`, `Rename`, `Delete`), absolute `path`, optional `to`, `directory`,
 and `external` for reconciled operations. Copies emit `Create`.
 
+## Privileged files
+
+`:FileToolsRead[!] [path]` reads a file with sudo. Dirty buffers require `!`.
+`:FileToolsWrite [path]` writes a snapshot with sudo; omitted paths use the
+current file. An alternate destination keeps the original buffer name and dirty
+state. Normal `:write` and tree operations never escalate automatically.
+
+Authentication opens a temporary terminal split only when a noninteractive
+sudo credential check fails. Authentication and transfer share one sudo process
+so PTY-scoped and process-scoped credential caches also work. Passwords go directly to sudo's terminal;
+Lua does not read or retain them. Closing that terminal cancels the operation.
+Without an attached UI, an uncached credential fails with an explanatory message.
+
+```lua
+local files = require("file_tools")
+local operation = files.privileged_write(nil, {
+  on_done = function(ok, err) end, -- optional; defaults to a notification
+})
+-- operation.cancel()
+-- files.privileged_read('/etc/hosts', { force = true })
+```
+
+Native Neovim serialization preserves file encoding, BOM, line endings and final
+newline options. Private staging files are removed on completion/cancellation.
+Changed, renamed or deleted buffers are guarded across asynchronous work;
+newer edits are never marked as saved. Writes overwrite the destination in place
+using sudo and dd; they are not atomic and do not create backups. A changed
+snapshot detected before transfer is refused. A disk failure can leave a partial
+write. The `sudo` executable and `timeout_ms` can be overridden per API call.
+
 ## Shared themes
 
 When `theme-tools.nvim` is loaded, the tree subscribes to its shared semantic
