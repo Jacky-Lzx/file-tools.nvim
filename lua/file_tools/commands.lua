@@ -2,7 +2,7 @@ local M = {}
 
 function M.setup()
   for _, action in ipairs({ "Read", "Write" }) do
-    vim.api.nvim_create_user_command("FileTools" .. action, function(args)
+    require("file_tools.user_command").create("FileTools" .. action, function(args)
       local ok, err = pcall(
         require("file_tools")["privileged_" .. action:lower()],
         args.args ~= "" and args.args or nil,
@@ -13,7 +13,7 @@ function M.setup()
       end
     end, { nargs = "?", bang = true, complete = "file", desc = "Read or write a file using sudo" })
   end
-  vim.api.nvim_create_user_command("FileTools", function(args)
+  require("file_tools.user_command").create("FileTools", function(args)
     local sub, argument = args.args:match("^(%S+)%s*(.-)$")
     sub = sub or "toggle"
     argument = argument ~= "" and argument or nil

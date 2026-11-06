@@ -265,3 +265,10 @@ verify uploads, placements, resize reuse and cleanup through a deterministic
 Kitty protocol responder, rather than physical terminal pixels.
 Set `FILE_TOOLS_PDF_FIXTURE` to a local PDF to check the same pixel-target and
 resize behavior with that document.
+
+## Command ownership
+
+Commands belong to the plugin; choose global entry keys and short aliases in
+your configuration. Registration reports same-name conflicts without replacing
+user commands. Reconfiguration refreshes only commands still owned by this
+plugin, and cleanup preserves subsequent user replacements.
