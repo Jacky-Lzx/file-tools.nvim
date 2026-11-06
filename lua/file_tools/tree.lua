@@ -479,12 +479,38 @@ local function map(state)
       )
     end,
   }
+  local descriptions = {
+    ["<Tab>"] = "Preview selected file once",
+    P = "Toggle persistent file preview",
+    ["<Esc>"] = "Close file preview",
+    ["<CR>"] = "Open file or toggle directory",
+    l = "Open file or toggle directory",
+    ["<2-LeftMouse>"] = "Open file or toggle directory",
+    h = "Collapse directory or select parent",
+    q = "Close file tree",
+    s = "Open file in vertical split",
+    S = "Open file in horizontal split",
+    t = "Open file in new tab",
+    a = "Create file or directory",
+    r = "Move or rename file",
+    d = "Delete file or directory",
+    R = "Refresh file tree",
+    ["."] = "Toggle hidden files",
+    ["-"] = "Use parent directory as tree root",
+    C = "Use selected directory as tree root",
+    f = "Reveal current file in tree",
+    y = "Copy selected file",
+    x = "Cut selected file",
+    p = "Paste file",
+    Y = "Copy selected path to clipboard",
+    ["?"] = "Show file tree help",
+  }
   for key, callback in pairs(keys) do
     vim.keymap.set(
       "n",
       key,
       callback,
-      { buffer = state.buf, silent = true, nowait = true, desc = "File tree: " .. key }
+      { buffer = state.buf, silent = true, nowait = true, desc = "File tree: " .. descriptions[key] }
     )
   end
 end
