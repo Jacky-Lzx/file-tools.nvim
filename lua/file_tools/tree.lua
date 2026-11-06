@@ -490,6 +490,9 @@ local function map(state)
 end
 
 function M.open(opts)
+  if vim.fn.exists("#FileToolsTree") == 0 then
+    M.setup()
+  end
   opts = opts or {}
   local tab, current = api.nvim_get_current_tabpage(), api.nvim_get_current_win()
   local state = states[tab]
@@ -685,6 +688,13 @@ function M.setup()
       end
     end,
   })
+end
+
+function M.dispose()
+  for _, tab in ipairs(vim.tbl_keys(states)) do
+    M.close(tab)
+  end
+  pcall(api.nvim_del_augroup_by_name, "FileToolsTree")
 end
 
 M.setup()

@@ -83,4 +83,13 @@ function M.setup()
   attach()
 end
 
+function M.dispose()
+  if stop then
+    stop()
+    stop = nil
+  end
+  initialized = false
+  pcall(api.nvim_del_augroup_by_name, "FileToolsTheme")
+end
+
 return M

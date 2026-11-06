@@ -1,8 +1,26 @@
 local M = {}
 
 function M.setup(opts)
+  assert(opts == nil or type(opts) == "table", "file-tools.nvim: setup expects a table")
+  opts = vim.deepcopy(opts or {})
   require("file_tools.config").setup(opts)
   require("file_tools.commands").setup()
+end
+
+function M.dispose()
+  for _, name in ipairs({ "tree", "privileged", "theme" }) do
+    local module = package.loaded["file_tools." .. name]
+    if module and module.dispose then
+      module.dispose()
+    end
+  end
+  local commands = package.loaded["file_tools.user_command"]
+  if commands then
+    for _, name in ipairs({ "FileTools", "FileToolsRead", "FileToolsWrite" }) do
+      commands.delete(name)
+    end
+  end
+  require("file_tools.config").setup()
 end
 
 for _, name in ipairs({ "open_external", "open_at_cursor" }) do

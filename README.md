@@ -272,3 +272,15 @@ Commands belong to the plugin; choose global entry keys and short aliases in
 your configuration. Registration reports same-name conflicts without replacing
 user commands. Reconfiguration refreshes only commands still owned by this
 plugin, and cleanup preserves subsequent user replacements.
+
+## Setup contract
+
+`setup(nil)` uses defaults. Configuration must be a table; caller-owned tables
+are copied before use. Invalid configuration types do not replace live handlers
+or commands. Repeating setup must not accumulate automatic registrations.
+
+`setup(opts)` resolves from fresh defaults. `dispose()` closes owned trees in
+all tabs, cancels pending privileged operations, releases tree watchers/theme
+subscriptions and unchanged owned commands, and resets options. User editing
+buffers and later command replacements remain untouched. Repeated disposal is
+safe; later setup/open installs the required tree handlers again.

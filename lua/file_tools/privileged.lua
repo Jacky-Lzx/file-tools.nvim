@@ -129,14 +129,15 @@ local function operate(kind, path, opts)
     state.error = err
     if opts.on_done then
       opts.on_done(not err, err)
-    else
+    elseif not state.quiet then
       vim.notify(
         err and ("file-tools: " .. err) or ("Privileged " .. kind .. ": " .. path),
         err and vim.log.levels.ERROR or vim.log.levels.INFO
       )
     end
   end
-  function state.cancel()
+  function state.cancel(quiet)
+    state.quiet = quiet
     finish("cancelled")
   end
   state.group = api.nvim_create_augroup("FileToolsPrivileged" .. buf, { clear = true })
@@ -307,6 +308,12 @@ end
 
 function M.write(path, opts)
   return operate("write", path, opts)
+end
+
+function M.dispose()
+  for _, state in ipairs(vim.tbl_values(pending)) do
+    state.cancel(true)
+  end
 end
 
 return M
