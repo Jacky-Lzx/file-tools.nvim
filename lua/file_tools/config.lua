@@ -11,6 +11,7 @@ function M.setup(opts)
   assert(config.tree.width >= 10, "tree.width must be at least 10")
   assert(config.tree.max_entries >= 2, "tree.max_entries must be at least 2")
   assert(config.lsp.timeout_ms > 0, "lsp.timeout_ms must be positive")
+  assert(config.opener == nil or type(config.opener) == "function", "opener must be a function")
   M.options = config
 end
 

@@ -5,6 +5,12 @@ function M.setup(opts)
   require("file_tools.commands").setup()
 end
 
+for _, name in ipairs({ "open_external", "open_at_cursor" }) do
+  M[name] = function(...)
+    return require("file_tools.opener")[name](...)
+  end
+end
+
 function M.capabilities()
   return require("file_tools.lsp").capabilities()
 end

@@ -107,6 +107,22 @@ LUA API                                                   *file-tools-api*
 toggle() opens without taking focus unless focus=true is passed. open() and
 find() focus the tree unless focus=false is passed.
 
+open_external(target) opens a path or URI in the system application, returning
+true or nil,error. Relative paths are tried beside the current buffer, then in
+cwd, then at the nearest Git root. Missing paths fall back to cwd. Absolute
+paths and URI schemes pass through; ~/ expands to the home directory. Other
+characters remain literal.
+
+open_at_cursor() uses <cfile> or the active characterwise, linewise or blockwise
+Visual selection, respecting 'selection'. It leaves Visual mode and calls the
+opener synchronously, returning true or nil,error and notifying on failure.
+Neither API opens the tree or queries LSP document links.
+
+The default backend is vim.ui.open. setup({ opener = function(target) ... end })
+overrides it; return a truthy value on launch success, or nil/false,error on
+failure. Optional mappings, owned by the caller: >
+    vim.keymap.set({ "n", "x" }, "go", require("file_tools").open_at_cursor)
+<
 setup() is optional. It registers the command and configures defaults; UI modules
 load only when used. No global key mappings are installed. Paths are normalized
 to absolute paths, resolving parent symlinks while preserving leaf symlinks.

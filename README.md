@@ -149,6 +149,31 @@ Successful operations emit `User FileToolsChanged`, with the event in `ev.data`:
 `kind` (`Create`, `Rename`, `Delete`), absolute `path`, optional `to`, `directory`,
 and `external` for reconciled operations. Copies emit `Create`.
 
+## Open with a system application
+
+```lua
+local files = require("file_tools")
+local ok, err = files.open_external("assets/diagram.pdf")
+files.open_external("https://neovim.io")
+vim.keymap.set({ "n", "x" }, "go", files.open_at_cursor)
+```
+
+These APIs use the system application, while `files.open()` opens the file tree.
+Relative paths are tried beside the current buffer, then in the working directory,
+then at the nearest Git root. Missing paths are passed relative to the working
+directory so the system opener can report the error. Absolute paths and URI schemes
+are passed through; a leading `~/` expands to the home directory. Other characters
+remain literal. `open_at_cursor()` uses `<cfile>` in Normal mode or the active
+characterwise, linewise or blockwise Visual selection (including exclusive selection),
+leaves Visual mode and opens synchronously.
+
+The default backend is `vim.ui.open`. Set `setup({ opener = function(target) ... end })`
+to use a custom backend. It must return a truthy result on launch success, or
+`nil/false, error` on failure. Both APIs return `true` or `nil, error`;
+`open_at_cursor()` also notifies on failure. No global mappings are installed.
+LSP integrations can call `files.open_at_cursor` from their fallback callback;
+file-tools itself does not query document links or depend on an LSP plugin.
+
 ## Privileged files
 
 `:FileToolsRead[!] [path]` reads a file with sudo. Dirty buffers require `!`.
