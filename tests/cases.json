@@ -360,7 +360,7 @@
   "fixtures": {
     "theme-tools.nvim": {
       "repository": "Jacky-Lzx/theme-tools.nvim",
-      "revision": "6eb5fc94618dd0f8e03d97515f8852274a3e6167",
+      "revision": "ea575718d7207d06e278d5ad2ed926b2bf38573d",
       "path": "{root}/../theme-tools.nvim"
     }
   }
