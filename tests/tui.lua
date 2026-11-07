@@ -18,11 +18,9 @@ vim.opt.swapfile = false
 vim.o.hidden = true
 vim.o.laststatus = 2
 if integrated then
-  local plugins = require("lazy.core.config").plugins
-  assert(
-    plugins["file-tools.nvim"] and not plugins["file-tools.nvim"]._.loaded,
-    "File-tools loaded before first use"
-  )
+  local plugins = require("config.plugins").nodes()
+  assert(plugins["file-tools.nvim"], "File-tools is not selected")
+  assert(not package.loaded["file_tools.tree"], "File tree loaded before first use")
   for _, name in ipairs({ "nvim-tree.lua", "nvim-lsp-file-operations", "yazi.nvim" }) do
     assert(not plugins[name], "Replaced file plugin is still configured: " .. name)
   end
@@ -34,12 +32,9 @@ if not dashboard_test then
   vim.cmd.edit(vim.fn.fnameescape(fixture .. "/current.txt"))
 end
 if integrated and not dashboard_test then
-  assert(
-    require("lazy.core.config").plugins["file-tools.nvim"]._.loaded,
-    "LSP dependency did not load file-tools"
-  )
+  assert(require("config.plugins").initialized("file-tools.nvim"), "File command registration is missing")
   assert(not package.loaded["file_tools.tree"], "Capabilities initialized the tree")
-  local capabilities = vim.lsp.config["ts_ls"].capabilities
+  local capabilities = vim.lsp.config["*"].capabilities
   assert(capabilities.workspace.fileOperations.willRename)
   assert(capabilities.textDocument.completion.completionItem.snippetSupport)
 end
@@ -263,7 +258,19 @@ vim.api.nvim_create_autocmd("VimEnter", {
   once = true,
   callback = function()
     vim.schedule(function()
-      vim.fn.writefile({ "ready" }, fixture .. "/ready")
+      local actions = {}
+      if integrated then
+        local resolver = dofile(vim.env.NVIM_CONFIG_ROOT .. "/tests/actions.lua")
+        for key, id in pairs({
+          toggle = "files.tree",
+          files = "selection.files",
+          reveal = "files.reveal",
+          cwd = "files.cwd",
+        }) do
+          actions[key] = resolver.input(id)
+        end
+      end
+      vim.fn.writefile({ vim.json.encode(actions) }, fixture .. "/ready")
     end)
   end,
 })

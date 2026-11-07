@@ -11,3 +11,4 @@ for suite in opener privileged core tree icons shared_icons theme theme_ownershi
 done
 
 python3 tests/privileged_tui.py
+python3 tests/tui.py

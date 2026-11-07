@@ -53,15 +53,21 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
     env = dict(os.environ, TERM="xterm-256color", FILE_TOOLS_ROOT=str(root),
                FILE_TOOLS_FIXTURE=str(fixture), XDG_STATE_HOME=str(fixture / "state"),
                XDG_CACHE_HOME=str(fixture / "cache"), NVIM_LOG_FILE=str(fixture / "nvim.log"),
-               NVIM_SMOKE_TEST="1", NVIM_LAZY_LOCKFILE=str(fixture / "lazy-lock.json"))
+               NVIM_SMOKE_TEST="1", NVIM_PLUGIN_LOCKFILE=str(fixture / "plugin-tools-lock.json"))
     if image_test:
         env.update(TERM="xterm-kitty", KITTY_WINDOW_ID="file-tools-pty-test")
         for name in ("TMUX", "ZELLIJ", "SSH_CONNECTION", "SSH_TTY"):
             env.pop(name, None)
-    init = str(Path.home() / ".config/nvim/init.lua") if configured else "NONE"
-    child = subprocess.Popen(["nvim", "--cmd", "let g:loaded_wakatime=1", "-u", init,
+    config_root = Path(env.get("NVIM_CONFIG_ROOT", Path.home() / ".config/nvim"))
+    init = str(config_root / "init.lua") if configured else "NONE"
+    setup = []
+    if configured:
+        env.update(NVIM_CONFIG_ROOT=str(config_root), NVIM_TEST_TMP=str(fixture))
+        shutil.copyfile(config_root / "plugin-tools-lock.json", env["NVIM_PLUGIN_LOCKFILE"])
+        setup = ["--cmd", "lua dofile(vim.env.NVIM_CONFIG_ROOT .. '/tests/setup.lua')"]
+    child = subprocess.Popen([env.get("NVIM_BIN", "nvim"), "--cmd", "let g:loaded_wakatime=1", *setup, "-u", init,
                               "-i", "NONE", "-n", "-c", "luafile " + str(root / "tests/tui.lua")],
-                             stdin=slave, stdout=slave, stderr=slave, env=env)
+                             stdin=slave, stdout=slave, stderr=slave, env=env, cwd=fixture)
     transcript = bytearray()
     pattern = re.compile(rb"\x1b_G([^;\x1b]+)(?:;([^\x1b]*))?\x1b\\")
     offset, pending, uploads, placements = 0, None, [], []
@@ -142,10 +148,11 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
             if (fixture / "ready").exists():
                 break
         assert (fixture / "ready").exists(), transcript.decode(errors="replace")[-3000:]
+        actions = json.loads((fixture / "ready").read_text())
         if dashboard_test:
             startup = snapshot(lambda v: bool(v.get("dashboard")), "Startup dashboard did not open")
             assert len(startup["windows"]) == 1
-            send(" e")
+            send(actions["toggle"])
             opened = snapshot(lambda v: bool(v.get("tree")), "Files did not open alongside dashboard")
             assert opened["origin"] and not opened["tree"]["focus"], "Toggle stole dashboard focus"
             # The dashboard recenters its content on WinResized; keep its selected action.
@@ -153,12 +160,12 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
             assert len(opened["windows"]) == 2 and opened.get("dashboard")
             send("\x17h")  # Enter Files explicitly for picker/tree interaction
             if dashboard_test == "picker":
-                send(" sf")
+                send(actions["files"])
                 snapshot(lambda v: v.get("picker", {}).get("ready"), "File picker did not open")
                 send("\x1b")
                 cancelled = snapshot(lambda v: not v.get("picker") and v.get("tree", {}).get("focus"), "Cancellation lost Files focus")
                 assert len(cancelled["windows"]) == 2 and cancelled["dashboard"] == startup["dashboard"]
-                send(" sf")
+                send(actions["files"])
                 snapshot(lambda v: v.get("picker", {}).get("ready"), "File picker did not reopen")
                 send("current.lua")
                 snapshot(lambda v: v.get("picker", {}).get("query") == "current.lua" and v["picker"]["ready"], "File query did not settle")
@@ -176,7 +183,7 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
             sys.exit(0)
         send("0lll")
         before = snapshot(lambda v: v["origin"], "Editor did not receive cursor movement")
-        toggle = " e" if integrated else "\x1b[17~"  # Configured leader-e or isolated F6
+        toggle = actions["toggle"] if integrated else "\x1b[17~"  # Declared toggle or isolated F6
         send(toggle)
         opened = snapshot(lambda v: bool(v.get("tree")), "Tree did not open")
         assert opened["origin"] and not opened["tree"]["focus"], "Toggle stole editor focus"
@@ -229,11 +236,11 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
                 assert frame["file_icon"]["cell"] == expected_icon
                 assert frame["tree"]["selected"] == opened["tree"]["selected"]
         if integrated:
-            send(" sf")
+            send(actions["files"])
             snapshot(lambda v: v.get("picker", {}).get("ready"), "Configured file picker did not open from Files")
             send("\x1b")
             snapshot(lambda v: not v.get("picker") and v.get("tree", {}).get("focus"), "Picker cancellation did not return to Files")
-            send(" sf")
+            send(actions["files"])
             snapshot(lambda v: v.get("picker", {}).get("ready"), "Configured file picker did not reopen")
             send("current.lua")
             snapshot(lambda v: v.get("picker", {}).get("query") == "current.lua" and v["picker"]["ready"], "File query did not settle")
@@ -346,14 +353,14 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
         send("q")
         snapshot(lambda v: not v.get("tree"), "Tree close leaked state")
         if integrated:
-            send(" E")
+            send(actions["reveal"])
             snapshot(lambda v: v.get("tree", {}).get("selected") == str(fixture / "src/child.txt"),
                      "Configured reveal mapping did not select the current file")
             send("hC")
             snapshot(lambda v: v.get("tree", {}).get("root") == str(fixture / "src"), "Tree root did not narrow")
-            send(" cw")
+            send(actions["cwd"])
             snapshot(lambda v: v.get("tree", {}).get("root") == str(fixture), "Working directory mapping did not reset root")
-            send(" e")
+            send(actions["toggle"])
             snapshot(lambda v: not v.get("tree"), "Configured toggle did not close tree")
         if highlight_test:
             send(toggle)
@@ -381,6 +388,14 @@ with tempfile.TemporaryDirectory(prefix="file-tools-tui-") as temporary:
         assert len(transcript) > 1000
         print("PTY" + (" (configured)" if configured else "") + ": rendered tree, folding/opening, create/rename prompts, hidden files, resize and cleanup, Tab single preview, P toggle and Escape" + (", real shared theme colors and transparency" if theme_test else "") + (", actual configured mappings and LSP dependencies" if integrated else "") + (", image/PDF uploads, placements and resize reuse" if image_test else "") + (", matching rendered TeX token colors and styles" if highlight_test else "") + " passed")
     finally:
+        evidence = os.environ.get("NVIM_TEST_TMP")
+        if evidence:
+            destination = Path(evidence) / "file-tools-tui"
+            destination.mkdir(parents=True, exist_ok=True)
+            (destination / "terminal.log").write_bytes(transcript)
+            for name in ("snapshot.json", "nvim.log"):
+                if (fixture / name).exists():
+                    shutil.copyfile(fixture / name, destination / name)
         send("\x1b:qa!\r")
         try:
             child.wait(timeout=3)

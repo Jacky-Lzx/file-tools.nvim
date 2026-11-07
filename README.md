@@ -237,12 +237,12 @@ require("file_tools").setup({
 `:checkhealth file_tools` checks dependencies. Run:
 
 ```sh
-bash tests/run.sh                         # core, tree, icons, themes, preview
+bash tests/run.sh                         # core, tree, icons, themes, preview and real PTY
 stylua --check lua plugin tests/*.lua
 python3 tests/tui.py                      # real PTY tree interaction
 FILE_TOOLS_CONFIGURED=1 python3 tests/tui.py # current Neovim configuration
 FILE_TOOLS_THEME_TEST=1 python3 tests/tui.py # real theme switches in the visible tree
-FILE_TOOLS_CONFIGURED=1 FILE_TOOLS_INTEGRATED=1 FILE_TOOLS_THEME_TEST=1 python3 tests/tui.py # actual configured e/E/cw mappings
+FILE_TOOLS_CONFIGURED=1 FILE_TOOLS_INTEGRATED=1 FILE_TOOLS_THEME_TEST=1 python3 tests/tui.py # actual configured tree/reveal/cwd actions
 FILE_TOOLS_IMAGE_TEST=1 python3 tests/tui.py # real image/PDF conversion + Kitty protocol responder
 FILE_TOOLS_CONFIGURED=1 FILE_TOOLS_INTEGRATED=1 FILE_TOOLS_IMAGE_TEST=1 python3 tests/tui.py # configured media previews
 FILE_TOOLS_CONFIGURED=1 FILE_TOOLS_INTEGRATED=1 FILE_TOOLS_HIGHLIGHT_TEST=1 python3 tests/tui.py # compare rendered TeX highlighting
@@ -252,8 +252,11 @@ nvim --headless -u NONE -i NONE -n -l tests/real_lsp.lua # installed TypeScript 
 ```
 
 For a nonstandard TypeScript installation, set `FILE_TOOLS_TSSERVER` to its
-`lib/tsserver.js`. Basic tests run in CI on Neovim 0.11.5 and stable; the real
-PTY and TypeScript tests are local acceptance checks.
+`lib/tsserver.js`. Basic tests and standalone PTY interactions run in CI on
+Neovim 0.11.5 and stable. Actual TypeScript-server tests remain local acceptance
+checks. Configured PTY checks use `NVIM_CONFIG_ROOT` (default `~/.config/nvim`)
+and that checkout's isolated test setup; they never start external LSP servers.
+The configuration suite owns registration of these cross-plugin workflows.
 Theme integration tests use the actual sibling `theme-tools.nvim` checkout;
 set `FILE_TOOLS_THEME_TOOLS` to use another checkout. Without it, the basic suite
 still checks standalone highlighting and reports the integration tests skipped.
