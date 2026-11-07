@@ -1,0 +1,367 @@
+{
+  "version": 1,
+  "default": [
+    "unit",
+    "ui"
+  ],
+  "defaults": {
+    "FILE_TOOLS_THEME_TOOLS": "{root}/../theme-tools.nvim"
+  },
+  "cases": [
+    {
+      "name": "runner-contracts",
+      "suite": "unit",
+      "command": [
+        "{python}",
+        "tests/runner_checks.py"
+      ],
+      "files": [
+        "tests/runner_checks.py"
+      ],
+      "timeout": 120
+    },
+    {
+      "name": "setup_contract",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "tests/setup_contract.lua"
+      ],
+      "files": [
+        "tests/setup_contract.lua"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "command_ownership",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "tests/command_ownership.lua"
+      ],
+      "files": [
+        "tests/command_ownership.lua"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "opener",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "-n",
+        "-l",
+        "tests/opener.lua"
+      ],
+      "files": [
+        "tests/opener.lua"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "privileged",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "-n",
+        "-l",
+        "tests/privileged.lua"
+      ],
+      "files": [
+        "tests/privileged.lua"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "core",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "-n",
+        "-l",
+        "tests/core.lua"
+      ],
+      "files": [
+        "tests/core.lua"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "tree",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "-n",
+        "-l",
+        "tests/tree.lua"
+      ],
+      "files": [
+        "tests/tree.lua"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "icons",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "-n",
+        "-l",
+        "tests/icons.lua"
+      ],
+      "files": [
+        "tests/icons.lua"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "shared_icons",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "-n",
+        "-l",
+        "tests/shared_icons.lua"
+      ],
+      "files": [
+        "tests/shared_icons.lua"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "theme",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "-n",
+        "-l",
+        "tests/theme.lua"
+      ],
+      "files": [
+        "tests/theme.lua"
+      ],
+      "timeout": 90,
+      "env": {
+        "FILE_TOOLS_THEME_STANDALONE": "1"
+      }
+    },
+    {
+      "name": "theme_ownership",
+      "suite": "integration",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "-n",
+        "-l",
+        "tests/theme_ownership.lua"
+      ],
+      "files": [
+        "tests/theme_ownership.lua"
+      ],
+      "requires": [
+        "path:{root}/../theme-tools.nvim/lua"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "preview",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "-n",
+        "-l",
+        "tests/preview.lua"
+      ],
+      "files": [
+        "tests/preview.lua"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "preview_highlighting",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "-n",
+        "-l",
+        "tests/preview_highlighting.lua"
+      ],
+      "files": [
+        "tests/preview_highlighting.lua"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "privileged_tui",
+      "suite": "ui",
+      "command": [
+        "{python}",
+        "tests/privileged_tui.py"
+      ],
+      "files": [
+        "tests/privileged_tui.py"
+      ],
+      "timeout": 120
+    },
+    {
+      "name": "tui",
+      "suite": "ui",
+      "command": [
+        "{python}",
+        "tests/tui.py"
+      ],
+      "files": [
+        "tests/tui.py"
+      ],
+      "timeout": 120
+    },
+    {
+      "name": "theme-early",
+      "suite": "integration",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-n",
+        "-l",
+        "tests/theme.lua"
+      ],
+      "files": [
+        "tests/theme.lua"
+      ],
+      "env": {
+        "FILE_TOOLS_THEME_EARLY": "1"
+      },
+      "requires": [
+        "path:$FILE_TOOLS_THEME_TOOLS/lua/theme_tools/init.lua"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "theme-late",
+      "suite": "integration",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-n",
+        "-l",
+        "tests/theme.lua"
+      ],
+      "files": [
+        "tests/theme.lua"
+      ],
+      "requires": [
+        "path:$FILE_TOOLS_THEME_TOOLS/lua/theme_tools/init.lua"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "real_lsp",
+      "suite": "acceptance",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-n",
+        "-l",
+        "tests/real_lsp.lua"
+      ],
+      "files": [
+        "tests/real_lsp.lua"
+      ],
+      "requires": [
+        "exe:node"
+      ],
+      "timeout": 180
+    }
+  ],
+  "support": {
+    "tests/tui.lua": "Loaded by tests/tui.py",
+    "tests/helpers.lua": "Loaded by tests/privileged.lua",
+    "tests/run.sh": "Stable shell entry point for tests/run.py"
+  },
+  "manual": {},
+  "fixtures": {
+    "theme-tools.nvim": {
+      "repository": "Jacky-Lzx/theme-tools.nvim",
+      "revision": "6eb5fc94618dd0f8e03d97515f8852274a3e6167",
+      "path": "{root}/../theme-tools.nvim"
+    }
+  }
+}

@@ -2,7 +2,8 @@ local h = dofile("tests/helpers.lua")
 local api = vim.api
 local theme_root = vim.env.FILE_TOOLS_THEME_TOOLS
   or vim.fs.normalize(vim.fn.getcwd() .. "/../theme-tools.nvim")
-local available = vim.uv.fs_stat(theme_root .. "/lua/theme_tools/init.lua") ~= nil
+local standalone = vim.env.FILE_TOOLS_THEME_STANDALONE == "1"
+local available = not standalone and vim.uv.fs_stat(theme_root .. "/lua/theme_tools/init.lua") ~= nil
 local early = vim.env.FILE_TOOLS_THEME_EARLY == "1"
 local themes, tree, state
 local options = {
@@ -116,9 +117,11 @@ if available then
     vim.cmd.tabclose()
     h.eq(state, tree.state())
   end)
-else
+elseif not standalone then
   assert(not vim.env.FILE_TOOLS_THEME_TOOLS, "FILE_TOOLS_THEME_TOOLS does not contain theme-tools.nvim")
   print("skip real theme-tools integration: sibling checkout unavailable")
+else
+  print("standalone theme contract passed; real provider belongs to the integration suite")
 end
 tree.close()
 h.finish()

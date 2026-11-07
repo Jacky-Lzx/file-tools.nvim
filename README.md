@@ -293,3 +293,5 @@ safe; later setup/open installs the required tree handlers again.
 Health reports actionable failures and a compact result for applicable checks. Disabled,
 optional and not-yet-activated features do not warn solely because they are inactive.
 Inspection does not configure plugins, start services or install dependencies.
+
+[Test workflow](tests/README.md): registered suites, filtering, required fixtures and retained failure evidence.
