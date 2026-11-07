@@ -284,3 +284,9 @@ all tabs, cancels pending privileged operations, releases tree watchers/theme
 subscriptions and unchanged owned commands, and resets options. User editing
 buffers and later command replacements remain untouched. Repeated disposal is
 safe; later setup/open installs the required tree handlers again.
+
+## Health and inspection
+
+Health reports actionable failures and a compact result for applicable checks. Disabled,
+optional and not-yet-activated features do not warn solely because they are inactive.
+Inspection does not configure plugins, start services or install dependencies.
